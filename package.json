@@ -1,0 +1,27 @@
+{
+  "name": "com.arcforge.uniclaude",
+  "version": "0.1.0",
+  "displayName": "UniClaude",
+  "description": "Claude Code integration for Unity Editor. Conversational AI assistant with project awareness and 60+ editor tools via MCP.",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "assistant",
+    "code-generation",
+    "editor"
+  ],
+  "author": {
+    "name": "ArcForge"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArcForge/com.arcforge.uniclaude.git"
+  },
+  "homepage": "https://github.com/ArcForge/com.arcforge.uniclaude",
+  "bugs": "https://github.com/ArcForge/com.arcforge.uniclaude/issues"
+}
