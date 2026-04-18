@@ -51,7 +51,7 @@ The key is never stored by UniClaude — it is read from the environment by the 
 3. Click the **+** button > **Add package from git URL...**
 4. Enter:
    ```
-   https://github.com/ArcForge/com.arcforge.uniclaude.git
+   https://github.com/TheArcForge/UniClaude.git
    ```
 5. Click **Add**
 
@@ -61,7 +61,7 @@ Unity will clone the repository and register the package. This may take a moment
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ArcForge/com.arcforge.uniclaude.git
+   git clone https://github.com/TheArcForge/UniClaude.git
    ```
 2. In Unity, go to **Window > Package Manager**
 3. Click **+** > **Add package from disk...**

@@ -12,7 +12,7 @@ If you discover a security vulnerability in UniClaude, please report it responsi
 
 ### How to Report
 
-Report vulnerabilities through [GitHub Security Advisories](https://github.com/ArcForge/com.arcforge.uniclaude/security/advisories/new). Include:
+Report vulnerabilities through [GitHub Security Advisories](https://github.com/TheArcForge/UniClaude/security/advisories/new). Include:
 
 - A description of the vulnerability
 - Steps to reproduce

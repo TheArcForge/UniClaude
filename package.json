@@ -20,8 +20,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ArcForge/com.arcforge.uniclaude.git"
+    "url": "https://github.com/TheArcForge/UniClaude.git"
   },
-  "homepage": "https://github.com/ArcForge/com.arcforge.uniclaude",
-  "bugs": "https://github.com/ArcForge/com.arcforge.uniclaude/issues"
+  "homepage": "https://github.com/TheArcForge/UniClaude",
+  "bugs": "https://github.com/TheArcForge/UniClaude/issues"
 }

@@ -36,7 +36,7 @@ Add via Unity Package Manager using the git URL:
 2. Click **+** > **Add package from git URL...**
 3. Enter:
    ```
-   https://github.com/ArcForge/com.arcforge.uniclaude.git
+   https://github.com/TheArcForge/UniClaude.git
    ```
 4. Click **Add**
 

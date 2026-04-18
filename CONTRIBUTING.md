@@ -12,7 +12,7 @@ Thanks for your interest in contributing to UniClaude! This guide covers everyth
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/ArcForge/com.arcforge.uniclaude.git
+   git clone https://github.com/TheArcForge/UniClaude.git
    ```
 
 2. Add the package to a Unity 6 project:
@@ -112,7 +112,7 @@ Keep PRs focused on a single concern. Large features should be discussed in an i
 
 ## Reporting Bugs
 
-Open an issue on [GitHub Issues](https://github.com/ArcForge/com.arcforge.uniclaude/issues) with:
+Open an issue on [GitHub Issues](https://github.com/TheArcForge/UniClaude/issues) with:
 
 - Unity version and OS
 - Steps to reproduce
