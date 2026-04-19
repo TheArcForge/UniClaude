@@ -9,6 +9,11 @@ Thumbs.db
 *.swo
 *~
 
+# Don't let *~ eat Unity tilde-suffix package directories
+!Sidecar~/
+!Skills~/
+!Installer~/
+
 # Claude Code local settings (contains developer-specific paths)
 .claude/settings.local.json
 
