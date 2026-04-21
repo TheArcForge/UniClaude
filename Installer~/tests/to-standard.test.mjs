@@ -59,6 +59,7 @@ test("to-standard-phase1: uninstalls filter, strips sentinel, adds manifest entr
       libraryRoot: join(r.dir, "Library", "UniClaude"),
       installerSourcePath: join(r.dir, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs"),
       spawnDetached: (cmd, args) => spawned.push({ cmd, args }),
+      nodeBinary: "/fake/node",
     });
 
     assert.equal(result.result, "ok");
@@ -78,7 +79,33 @@ test("to-standard-phase1: uninstalls filter, strips sentinel, adds manifest entr
     assert.notEqual(clean.status, 0);
 
     assert.equal(spawned.length, 1);
+    assert.equal(spawned[0].cmd, "/fake/node");
     assert.match(spawned[0].args.join(" "), /delete-folder/);
     assert.match(spawned[0].args.join(" "), /Packages\/com\.arcforge\.uniclaude/);
+  } finally { r.cleanup(); }
+});
+
+test("to-standard-phase1: prefers filter-manifest.originalSpec over package.json repository.url", () => {
+  const r = setupNinjaProject();
+  try {
+    // Overwrite the seeded filter-manifest.json to include a preserved original spec
+    // (this is what to-ninja now saves).
+    writeFileSync(join(r.dir, "Library", "UniClaude", "filter-manifest.json"),
+      JSON.stringify({
+        owned: { "com.arcforge.uniclaude": { version: "...", dependencies: {} } },
+        originalSpec: "git+https://github.com/TheArcForge/UniClaude.git#feature/ninja-mode",
+      }, null, 2) + "\n");
+
+    toStandardPhase1({
+      projectRoot: r.dir,
+      libraryRoot: join(r.dir, "Library", "UniClaude"),
+      installerSourcePath: join(r.dir, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs"),
+      spawnDetached: () => {},
+    });
+
+    const manifest = JSON.parse(readFileSync(join(r.dir, "Packages", "manifest.json"), "utf8"));
+    assert.equal(
+      manifest.dependencies["com.arcforge.uniclaude"],
+      "git+https://github.com/TheArcForge/UniClaude.git#feature/ninja-mode");
   } finally { r.cleanup(); }
 });

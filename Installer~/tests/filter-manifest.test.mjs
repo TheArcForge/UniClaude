@@ -16,14 +16,30 @@ test("round-trip", () => {
     const p = join(t.dir, "filter-manifest.json");
     const owned = { "com.arcforge.uniclaude": { version: "x", dependencies: {} } };
     writeFilterManifest(p, owned);
-    assert.deepEqual(readFilterManifest(p).owned, owned);
+    const r = readFilterManifest(p);
+    assert.deepEqual(r.owned, owned);
+    assert.equal(r.originalSpec, null);
   } finally { t.cleanup(); }
 });
 
-test("readFilterManifest returns empty owned when file absent", () => {
+test("round-trip with originalSpec", () => {
+  const t = tmp();
+  try {
+    const p = join(t.dir, "filter-manifest.json");
+    const owned = { "com.arcforge.uniclaude": { version: "x", dependencies: {} } };
+    const spec = "git+file:///path/to/repo#feature/ninja-mode";
+    writeFilterManifest(p, owned, spec);
+    const r = readFilterManifest(p);
+    assert.deepEqual(r.owned, owned);
+    assert.equal(r.originalSpec, spec);
+  } finally { t.cleanup(); }
+});
+
+test("readFilterManifest returns empty owned and null originalSpec when file absent", () => {
   const t = tmp();
   try {
     const r = readFilterManifest(join(t.dir, "absent.json"));
     assert.deepEqual(r.owned, {});
+    assert.equal(r.originalSpec, null);
   } finally { t.cleanup(); }
 });

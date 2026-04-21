@@ -109,7 +109,101 @@ test("to-ninja: full happy path", () => {
       "com.arcforge.uniclaude",
       "com.unity.nuget.newtonsoft-json",
     ]);
+    assert.equal(fm.originalSpec, "https://github.com/TheArcForge/UniClaude.git");
   } finally { r.cleanup(); }
+});
+
+test("to-ninja: preserves UPM-style originalSpec with branch pin", () => {
+  const r = setupProject();
+  try {
+    // Overwrite the manifest with a realistic UPM spec that includes git+ prefix and #ref
+    const upmSpec = "git+https://github.com/TheArcForge/UniClaude.git#feature/ninja-mode";
+    const manifest = JSON.parse(readFileSync(join(r.dir, "Packages", "manifest.json"), "utf8"));
+    manifest.dependencies["com.arcforge.uniclaude"] = upmSpec;
+    writeFileSync(join(r.dir, "Packages", "manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n");
+
+    toNinja({
+      projectRoot: r.dir,
+      gitUrl: upmSpec,
+      cloneFn: (url, dest) => {
+        mkdirSync(dest, { recursive: true });
+        writeFileSync(join(dest, "package.json"),
+          JSON.stringify({ name: "com.arcforge.uniclaude", version: "0.1.0" }, null, 2) + "\n");
+      },
+      libraryRoot: join(r.dir, "Library", "UniClaude"),
+      installerSourcePath: join(r.dir, "Installer~", "installer.mjs"),
+    });
+
+    const fm = JSON.parse(readFileSync(
+      join(r.dir, "Library", "UniClaude", "filter-manifest.json"), "utf8"));
+    assert.equal(fm.originalSpec, upmSpec);
+  } finally { r.cleanup(); }
+});
+
+test("to-ninja: git filter config bakes absolute node binary path", () => {
+  const r = setupProject();
+  try {
+    toNinja({
+      projectRoot: r.dir,
+      gitUrl: "https://example.invalid/uniclaude.git",
+      cloneFn: (url, dest) => {
+        mkdirSync(dest, { recursive: true });
+        writeFileSync(join(dest, "package.json"),
+          JSON.stringify({ name: "com.arcforge.uniclaude", version: "0.1.0" }, null, 2) + "\n");
+      },
+      libraryRoot: join(r.dir, "Library", "UniClaude"),
+      installerSourcePath: join(r.dir, "Installer~", "installer.mjs"),
+      nodeBinary: "/fake/abs/path/node",
+    });
+
+    const { stdout: clean } = spawnSync("git",
+      ["config", "--get", "filter.uniclaude.clean"], { cwd: r.dir, encoding: "utf8" });
+    assert.match(clean, /"\/fake\/abs\/path\/node"/);
+    assert.match(clean, /installer-persistent\.mjs/);
+
+    const { stdout: smudge } = spawnSync("git",
+      ["config", "--get", "filter.uniclaude.smudge"], { cwd: r.dir, encoding: "utf8" });
+    assert.match(smudge, /"\/fake\/abs\/path\/node"/);
+  } finally { r.cleanup(); }
+});
+
+test("to-ninja: defaultClone handles git+file:// URL with branch fragment (real git)", () => {
+  // Create a real upstream repo, seed it with a feature branch, then drive toNinja
+  // through defaultClone (no cloneFn injection) with the UPM URL format that caused
+  // the production failure: "git+file://...#branch".
+  const upstream = mkdtempSync(join(tmpdir(), "uc-up-"));
+  try {
+    spawnSync("git", ["init", "-q", "-b", "main"], { cwd: upstream });
+    spawnSync("git", ["config", "user.email", "t@e.st"], { cwd: upstream });
+    spawnSync("git", ["config", "user.name", "test"], { cwd: upstream });
+    writeFileSync(join(upstream, "package.json"),
+      JSON.stringify({ name: "com.arcforge.uniclaude", version: "0.1.0" }, null, 2) + "\n");
+    spawnSync("git", ["add", "."], { cwd: upstream });
+    spawnSync("git", ["commit", "-q", "-m", "initial"], { cwd: upstream });
+    spawnSync("git", ["checkout", "-q", "-b", "feature/ninja-mode"], { cwd: upstream });
+    writeFileSync(join(upstream, "package.json"),
+      JSON.stringify({ name: "com.arcforge.uniclaude", version: "0.2.0-ninja" }, null, 2) + "\n");
+    spawnSync("git", ["commit", "-qam", "bump"], { cwd: upstream });
+
+    const r = setupProject();
+    try {
+      const upmUrl = `git+file://${upstream}#feature/ninja-mode`;
+      const result = toNinja({
+        projectRoot: r.dir,
+        gitUrl: upmUrl,
+        // no cloneFn → exercises defaultClone with real git
+        libraryRoot: join(r.dir, "Library", "UniClaude"),
+        installerSourcePath: join(r.dir, "Installer~", "installer.mjs"),
+      });
+      assert.equal(result.result, "ok");
+
+      // Verify the branch was checked out (feature branch's package.json has 0.2.0-ninja)
+      const cloned = JSON.parse(readFileSync(
+        join(r.dir, "Packages", "com.arcforge.uniclaude", "package.json"), "utf8"));
+      assert.equal(cloned.version, "0.2.0-ninja");
+    } finally { r.cleanup(); }
+  } finally { rmSync(upstream, { recursive: true, force: true }); }
 });
 
 test("to-ninja: aborts when packages-lock.json is missing", () => {

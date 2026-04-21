@@ -17,6 +17,7 @@ export function deleteFromNinja({
   libraryRoot,
   installerSourcePath,
   spawnDetached = defaultSpawnDetached,
+  nodeBinary = process.execPath,
   deleteWaitMs = 15000,
 }) {
   const packagePath = join(projectRoot, "Packages", UNICLAUDE_NAME);
@@ -35,7 +36,7 @@ export function deleteFromNinja({
   removeFilterLine(projectRoot);
   removeSentinel(projectRoot);
 
-  spawnDetached("node", [
+  spawnDetached(nodeBinary, [
     persistentInstaller,
     "delete-folder",
     "--path", packagePath,

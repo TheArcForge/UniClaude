@@ -1,7 +1,8 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { readManifest, writeManifest, addPackage } from "../manifest.mjs";
+import { readFilterManifest } from "../filter-manifest.mjs";
 import { removeSentinel } from "../exclude.mjs";
 import { removeFilterLine } from "../attributes.mjs";
 import { git } from "../git.mjs";
@@ -13,16 +14,32 @@ function defaultSpawnDetached(cmd, args) {
   child.unref();
 }
 
+function resolveRestoreSpec(libraryRoot, packagePath) {
+  const fm = readFilterManifest(join(libraryRoot, "filter-manifest.json"));
+  if (fm.originalSpec) return fm.originalSpec;
+
+  const pkgJsonPath = join(packagePath, "package.json");
+  if (!existsSync(pkgJsonPath)) {
+    throw new Error(
+      `cannot determine UniClaude dependency spec: no originalSpec in filter-manifest.json and missing ${pkgJsonPath}`
+    );
+  }
+  const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+  const gitUrl = pkgJson?.repository?.url;
+  if (!gitUrl) throw new Error(`no repository.url in ${pkgJsonPath}`);
+  return gitUrl;
+}
+
 export function toStandardPhase1({
   projectRoot,
   libraryRoot,
   installerSourcePath,
   spawnDetached = defaultSpawnDetached,
+  nodeBinary = process.execPath,
   deleteWaitMs = 15000,
 }) {
   const manifestPath = join(projectRoot, "Packages", "manifest.json");
   const packagePath = join(projectRoot, "Packages", UNICLAUDE_NAME);
-  const pkgJsonPath = join(packagePath, "package.json");
   const persistentInstaller = join(libraryRoot, "installer-persistent.mjs");
 
   mkdirSync(libraryRoot, { recursive: true });
@@ -31,10 +48,7 @@ export function toStandardPhase1({
     throw new Error(`persistent installer missing: ${persistentInstaller}`);
   }
 
-  if (!existsSync(pkgJsonPath)) throw new Error(`missing ${pkgJsonPath}`);
-  const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
-  const gitUrl = pkgJson?.repository?.url;
-  if (!gitUrl) throw new Error(`no repository.url in ${pkgJsonPath}`);
+  const restoreSpec = resolveRestoreSpec(libraryRoot, packagePath);
 
   git(projectRoot, ["config", "--unset", "filter.uniclaude.clean"]);
   git(projectRoot, ["config", "--unset", "filter.uniclaude.smudge"]);
@@ -44,10 +58,10 @@ export function toStandardPhase1({
   removeSentinel(projectRoot);
 
   const manifest = readManifest(manifestPath);
-  addPackage(manifest, UNICLAUDE_NAME, gitUrl);
+  addPackage(manifest, UNICLAUDE_NAME, restoreSpec);
   writeManifest(manifestPath, manifest);
 
-  spawnDetached("node", [
+  spawnDetached(nodeBinary, [
     persistentInstaller,
     "delete-folder",
     "--path", packagePath,
