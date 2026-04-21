@@ -4,6 +4,12 @@ All notable changes to UniClaude will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Ninja Install Mode.** Settings → Install Mode section lets you convert between Standard (UPM, team-visible) and Ninja (embedded, git-invisible) installs. In Ninja mode, `git status` stays clean while UniClaude runs normally. Reversible, with a Delete option that works in both modes.
+
 ## [0.1.0] - 2026-04-13
 
 ### Added

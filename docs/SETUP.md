@@ -67,6 +67,43 @@ Unity will clone the repository and register the package. This may take a moment
 3. Click **+** > **Add package from disk...**
 4. Select the `package.json` file in the cloned directory
 
+## Ninja Mode (optional — hide UniClaude from git)
+
+If you want to use UniClaude on a team project without your changes to `Packages/manifest.json` and `packages-lock.json` showing up in git, switch to **Ninja mode**.
+
+**How to enable:**
+
+1. Install UniClaude normally (git URL via Package Manager).
+2. Open the UniClaude window → **Settings** tab → **Install Mode**.
+3. Click **Convert to Ninja Mode** and confirm.
+
+Unity reloads. After the reload, `git status` should be clean even though UniClaude is fully functional.
+
+**How it works:**
+
+- UniClaude is cloned into `Packages/com.arcforge.uniclaude/` (an embedded package).
+- `.git/info/exclude` (local-only, never committed) hides the folder.
+- A git clean/smudge filter on `Packages/packages-lock.json` strips UniClaude entries on commit and adds them back on checkout. Your working copy has the entries; git's view of the file does not.
+- The `com.arcforge.uniclaude` entry is removed from `Packages/manifest.json` (your team never had it, so no diff).
+
+**When your team pulls:** team changes to `packages-lock.json` apply normally via the smudge filter. No manual intervention.
+
+**To revert:**
+
+Open **Settings → Install Mode → Convert to Standard Mode**. UniClaude re-fetches via UPM and the filter is removed. Use this when your team is ready to adopt UniClaude as a shared dependency.
+
+**To uninstall entirely:**
+
+**Settings → Install Mode → Delete UniClaude** — works in either mode.
+
+**Prerequisites:**
+
+- Your project must be a git repo.
+- `git` must be on your PATH.
+- `Packages/manifest.json` and `Packages/packages-lock.json` must be clean (committed or stashed) before conversion.
+
+If the Install Mode buttons are disabled, hover for the reason.
+
 ## First Run
 
 1. Open the UniClaude window: **ArcForge > UniClaude**
@@ -132,6 +169,26 @@ Unity's domain reload (triggered by script compilation) temporarily disconnects 
 ### Run the health check
 
 Type `/healthcheck` in the chat input to run a diagnostic pipeline that verifies Node.js, sidecar connectivity, and MCP tool execution. It reports pass/fail for each step and is the fastest way to pinpoint what's broken.
+
+### Ninja mode conversion failed partway
+
+**Symptoms:** Install Mode section shows "Currently: Other" after a "Convert to Ninja Mode" attempt, and the Settings buttons are disabled.
+
+The installer partially succeeded — the package was cloned into `Packages/com.arcforge.uniclaude/`, but one of the follow-up steps (sentinel, filter config, manifest edit) failed before completion. The probe only reports Ninja mode when both the embedded folder AND the sentinel block are present, so partial state looks like "Other".
+
+**To recover manually:**
+
+```bash
+# From the project root
+rm -rf Packages/com.arcforge.uniclaude
+# Check .git/info/exclude and remove any "# UniClaude ninja-mode" block
+# Check .git/info/attributes and remove any "Packages/packages-lock.json filter=uniclaude" line
+git config --local --unset filter.uniclaude.clean
+git config --local --unset filter.uniclaude.smudge
+git config --local --unset filter.uniclaude.required
+```
+
+Then reinstall UniClaude via Package Manager and retry. Common root causes: dirty manifest/lock (not committed/stashed), git not on PATH, or filesystem permissions.
 
 ### macOS Gatekeeper blocks sidecar binaries
 

@@ -10,7 +10,7 @@ const installer = resolve(here, "..", "installer.mjs");
 test("installer: no args exits 2", () => {
   const r = spawnSync("node", [installer], { encoding: "utf8" });
   assert.equal(r.status, 2);
-  assert.match(r.stderr, /usage/);
+  assert.match(r.stderr, /Unknown subcommand/);
 });
 
 test("installer: unknown subcommand exits 2", () => {

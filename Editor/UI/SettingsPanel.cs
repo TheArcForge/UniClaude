@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UniClaude.Editor;
+using UniClaude.Editor.Installer;
 using UniClaude.Editor.MCP;
 using UnityEditor;
 using UnityEngine;
@@ -160,6 +161,11 @@ namespace UniClaude.Editor.UI
             });
             scroll.Add(fontSizeDropdown);
 
+            scroll.Add(MakeSeparator());
+
+            // Section: Install Mode
+            scroll.Add(MakeSectionHeader("Install Mode"));
+            scroll.Add(new InstallModeSection());
             scroll.Add(MakeSeparator());
 
             // Section: Model
