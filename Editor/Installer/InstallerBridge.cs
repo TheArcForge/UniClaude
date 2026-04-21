@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using Newtonsoft.Json;
+using UniClaude.Editor;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -47,7 +48,15 @@ namespace UniClaude.Editor.Installer
         {
             try
             {
-                var node = string.IsNullOrEmpty(nodePath) ? "node" : nodePath;
+                var node = nodePath;
+                if (string.IsNullOrEmpty(node))
+                {
+                    var settings = UniClaudeSettings.Load();
+                    node = SidecarManager.FindNodeBinary(settings.NodePath);
+                }
+                if (string.IsNullOrEmpty(node))
+                    return new Outcome { ExitCode = -1, Stderr = "Node.js binary not found. Set the path in UniClaude Settings." };
+
                 var args = new List<string> { installerPath };
                 args.AddRange(BuildArgs(cmd, projectRoot, gitUrl));
 
@@ -112,9 +121,13 @@ namespace UniClaude.Editor.Installer
 
         /// <summary>Absolute path to the packaged installer.mjs.</summary>
         /// <param name="projectRoot">Project root.</param>
-        /// <returns>Path to installer.mjs inside Packages/com.arcforge.uniclaude/Installer~/.</returns>
+        /// <returns>Path to installer.mjs inside the resolved UniClaude package (Library/PackageCache in Standard mode, Packages/com.arcforge.uniclaude in Ninja mode).</returns>
         public static string FindInstallerPath(string projectRoot)
         {
+            var pkg = UnityEditor.PackageManager.PackageInfo
+                .FindForAssembly(typeof(InstallerBridge).Assembly);
+            if (pkg != null && !string.IsNullOrEmpty(pkg.resolvedPath))
+                return Path.Combine(pkg.resolvedPath, "Installer~", "installer.mjs");
             return Path.Combine(projectRoot, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs");
         }
 
