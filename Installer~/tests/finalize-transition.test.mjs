@@ -6,7 +6,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeMarker } from "../src/transition-marker.mjs";
-import { finalizeTransition } from "../src/commands/finalize-transition.mjs";
+import { finalizeTransition, resolveUnityBinary } from "../src/commands/finalize-transition.mjs";
 
 function setup(kind) {
   const root = mkdtempSync(join(tmpdir(), "uc-fin-"));
@@ -131,6 +131,66 @@ test("finalize: delete-from-ninja kind → mode deleted", async () => {
     const status = JSON.parse(readFileSync(s.statusPath, "utf8"));
     assert.equal(status.mode, "deleted");
     assert.equal(status.command, "delete-from-ninja");
+  } finally { s.cleanup(); }
+});
+
+test("resolveUnityBinary: darwin .app bundle → inner Unity binary", () => {
+  assert.equal(
+    resolveUnityBinary("/Applications/Unity/Hub/Editor/6000.3.2f1/Unity.app", "darwin"),
+    "/Applications/Unity/Hub/Editor/6000.3.2f1/Unity.app/Contents/MacOS/Unity",
+  );
+});
+
+test("resolveUnityBinary: win32 Unity.exe passes through", () => {
+  assert.equal(
+    resolveUnityBinary("C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.2f1\\Editor\\Unity.exe", "win32"),
+    "C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.2f1\\Editor\\Unity.exe",
+  );
+});
+
+test("resolveUnityBinary: linux binary passes through", () => {
+  assert.equal(
+    resolveUnityBinary("/opt/unity/6000.3.2f1/Editor/Unity", "linux"),
+    "/opt/unity/6000.3.2f1/Editor/Unity",
+  );
+});
+
+test("resolveUnityBinary: darwin path without .app suffix passes through", () => {
+  assert.equal(
+    resolveUnityBinary("/some/already/resolved/Unity", "darwin"),
+    "/some/already/resolved/Unity",
+  );
+});
+
+test("finalize: darwin .app bundle is translated before spawn", async () => {
+  const s = setup("to-standard");
+  try {
+    writeMarker(s.markerPath, {
+      kind: "to-standard",
+      unityPid: 99999,
+      unityAppPath: "/Applications/Unity/Hub/Editor/6000.3.2f1/Unity.app",
+      projectPath: s.dir,
+      packagePath: s.packagePath,
+      statusPath: s.statusPath,
+      createdAt: new Date().toISOString(),
+    });
+
+    const spawned = [];
+    await finalizeTransition({
+      markerPath: s.markerPath,
+      isProcessAlive: () => false,
+      sleep: async () => {},
+      spawnUnity: (cmd, args) => spawned.push({ cmd, args }),
+      timeoutMs: 60000,
+      platform: "darwin",
+    });
+
+    assert.equal(spawned.length, 1);
+    assert.equal(
+      spawned[0].cmd,
+      "/Applications/Unity/Hub/Editor/6000.3.2f1/Unity.app/Contents/MacOS/Unity",
+    );
+    assert.deepEqual(spawned[0].args, ["-projectPath", s.dir]);
   } finally { s.cleanup(); }
 });
 

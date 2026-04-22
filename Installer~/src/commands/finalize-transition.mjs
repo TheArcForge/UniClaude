@@ -21,6 +21,24 @@ function modeFor(kind) {
 }
 
 /**
+ * Translate Unity's `EditorApplication.applicationPath` into something
+ * `child_process.spawn` can exec directly. On macOS, that property returns the
+ * `.app` bundle directory (not executable); the real binary lives at
+ * `<bundle>/Contents/MacOS/Unity`. Windows/Linux return the executable itself
+ * and pass through unchanged.
+ *
+ * @param {string} unityAppPath - Value of Unity's EditorApplication.applicationPath.
+ * @param {string} platform - process.platform value ("darwin", "win32", "linux").
+ * @returns {string} An absolute path spawn() can exec.
+ */
+export function resolveUnityBinary(unityAppPath, platform = process.platform) {
+  if (platform === "darwin" && unityAppPath.endsWith(".app")) {
+    return `${unityAppPath}/Contents/MacOS/Unity`;
+  }
+  return unityAppPath;
+}
+
+/**
  * Default Unity relaunch implementation: spawn detached so the child outlives
  * this process, then unref so we don't keep the event loop alive.
  *
@@ -44,6 +62,7 @@ function defaultSpawnUnity(cmd, args) {
  * @param {function(string, object): void} opts.rmSync - Delete a path recursively; injectable for error simulation.
  * @param {function(string, string[]): void} opts.spawnUnity - Launch Unity; injectable for error simulation.
  * @param {number} opts.timeoutMs - Maximum ms to wait for Unity to exit before giving up.
+ * @param {string} opts.platform - process.platform value; injectable for cross-platform tests.
  */
 export async function finalizeTransition({
   markerPath,
@@ -52,6 +71,7 @@ export async function finalizeTransition({
   rmSync = realRmSync,
   spawnUnity = defaultSpawnUnity,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  platform = process.platform,
 }) {
   const marker = readMarker(markerPath);
   const write = (patch) => writeStatus(marker.statusPath, marker.kind, patch);
@@ -83,7 +103,8 @@ export async function finalizeTransition({
 
   write({ step: "relaunching", result: "in-progress" });
   try {
-    spawnUnity(marker.unityAppPath, ["-projectPath", marker.projectPath]);
+    const unityBinary = resolveUnityBinary(marker.unityAppPath, platform);
+    spawnUnity(unityBinary, ["-projectPath", marker.projectPath]);
   } catch (err) {
     write({
       step: "complete",
