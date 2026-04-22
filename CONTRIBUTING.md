@@ -105,7 +105,7 @@ The tool is discovered automatically via reflection at editor startup.
 2. Make your changes with clear, focused commits.
 3. Add or update tests for any changed behavior.
 4. Ensure all C# and TypeScript tests pass.
-5. Update `CHANGELOG.md` under an `[Unreleased]` section if your change is user-facing.
+5. Note any user-facing changes in your PR description — they'll be added to `CHANGELOG.md` when the next release is cut.
 6. Open a pull request with a description of what changed and why.
 
 Keep PRs focused on a single concern. Large features should be discussed in an issue first.

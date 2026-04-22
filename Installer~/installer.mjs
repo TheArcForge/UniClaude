@@ -1,11 +1,96 @@
 #!/usr/bin/env node
-const [, , subcommand, ...rest] = process.argv;
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { readFilterManifest } from "./src/filter-manifest.mjs";
+import { cleanLockJson, smudgeLockJson } from "./src/filter.mjs";
+import { toNinja } from "./src/commands/to-ninja.mjs";
+import { toStandardPhase1 } from "./src/commands/to-standard.mjs";
+import { deleteFromNinja } from "./src/commands/delete-from-ninja.mjs";
+import { finalizeTransition } from "./src/commands/finalize-transition.mjs";
 
-if (!subcommand) {
-  console.error("usage: installer.mjs <subcommand> [args]");
-  process.exit(2);
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+function parseArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    if (!argv[i].startsWith("--")) throw new Error(`bad arg: ${argv[i]}`);
+    out[argv[i].slice(2)] = argv[i + 1];
+  }
+  return out;
 }
 
-// Real implementations land in later tasks. Stub for now so the entrypoint is callable.
-console.error(`Unknown subcommand: ${subcommand}`);
-process.exit(2);
+async function readStdin() {
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function main() {
+  const [, , sub, ...rest] = process.argv;
+
+  if (sub === "clean" || sub === "smudge") {
+    const opts = parseArgs(rest);
+    const projectRoot = opts["project-root"] || process.cwd();
+    const fmPath = resolve(projectRoot, "Library", "UniClaude", "filter-manifest.json");
+    const owned = readFilterManifest(fmPath).owned;
+    const input = await readStdin();
+    process.stdout.write(sub === "clean" ? cleanLockJson(input, owned) : smudgeLockJson(input, owned));
+    return 0;
+  }
+
+  const opts = parseArgs(rest);
+  const projectRoot = opts["project-root"];
+  const libraryRoot = projectRoot ? resolve(projectRoot, "Library", "UniClaude") : undefined;
+  const installerSourcePath = resolve(HERE, "installer.mjs");
+
+  if (sub === "to-ninja") {
+    if (!opts["git-url"]) throw new Error("--git-url required");
+    const r = toNinja({ projectRoot, gitUrl: opts["git-url"], libraryRoot, installerSourcePath });
+    console.log(JSON.stringify(r));
+    return 0;
+  }
+
+  if (sub === "to-standard") {
+    if (!opts["unity-pid"]) throw new Error("--unity-pid required");
+    if (!opts["unity-app-path"]) throw new Error("--unity-app-path required");
+    const r = toStandardPhase1({
+      projectRoot,
+      libraryRoot,
+      installerSourcePath,
+      unityPid: parseInt(opts["unity-pid"], 10),
+      unityAppPath: opts["unity-app-path"],
+    });
+    console.log(JSON.stringify(r));
+    return 0;
+  }
+
+  if (sub === "delete-from-ninja") {
+    if (!opts["unity-pid"]) throw new Error("--unity-pid required");
+    if (!opts["unity-app-path"]) throw new Error("--unity-app-path required");
+    const r = deleteFromNinja({
+      projectRoot,
+      libraryRoot,
+      installerSourcePath,
+      unityPid: parseInt(opts["unity-pid"], 10),
+      unityAppPath: opts["unity-app-path"],
+    });
+    console.log(JSON.stringify(r));
+    return 0;
+  }
+
+  if (sub === "finalize-transition") {
+    if (!opts["marker"]) throw new Error("--marker required");
+    await finalizeTransition({ markerPath: opts["marker"] });
+    return 0;
+  }
+
+  console.error(`Unknown subcommand: ${sub}`);
+  return 2;
+}
+
+main()
+  .then(code => process.exit(code))
+  .catch(err => {
+    console.error(err.message || String(err));
+    process.exit(1);
+  });

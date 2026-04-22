@@ -56,6 +56,21 @@ namespace UniClaude.Editor
         /// </summary>
         public int ContextTokenBudget = 3300;
 
+        /// <summary>ISO-8601 UTC timestamp of the last version check, or null if never checked.</summary>
+        public string LastVersionCheckIsoUtc;
+
+        /// <summary>Latest release tag name from the last successful check (e.g. "v0.3.0"), or null.</summary>
+        public string LastKnownLatestVersion;
+
+        /// <summary>Release notes markdown from the last successful check, or null.</summary>
+        public string LastKnownReleaseNotes;
+
+        /// <summary>HTML URL to the release page on GitHub, or null.</summary>
+        public string LastKnownReleaseUrl;
+
+        /// <summary>ISO-8601 published-at timestamp of the latest release, or null.</summary>
+        public string LastKnownReleasePublishedAt;
+
         /// <summary>
         /// Available model choices — single source of truth for Settings view and /model command.
         /// </summary>

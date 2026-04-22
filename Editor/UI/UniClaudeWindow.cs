@@ -147,6 +147,8 @@ namespace UniClaude.Editor
             EditorApplication.update += _sidecar.HealthPing;
             AssemblyReloadEvents.beforeAssemblyReload += SaveStateBeforeReload;
 
+            RebuildUI();
+
             // Deferred sidecar start to avoid blocking OnEnable
             EditorApplication.delayCall += () =>
             {
@@ -185,11 +187,22 @@ namespace UniClaude.Editor
         }
 
         /// <summary>
-        /// Builds the UI Toolkit visual tree. Called once when the window is created.
+        /// UI Toolkit hook. Intentionally empty — OnEnable drives tree building via
+        /// RebuildUI() so domain reloads (which re-run OnEnable but not CreateGUI)
+        /// rebuild the tree instead of leaving it orphaned with null C# references.
         /// </summary>
         public void CreateGUI()
         {
+        }
+
+        /// <summary>
+        /// Clears rootVisualElement and rebuilds the full UI tree. Called from OnEnable
+        /// so fresh-open and domain-reload both land on a clean, consistent state.
+        /// </summary>
+        void RebuildUI()
+        {
             var root = rootVisualElement;
+            root.Clear();
             root.style.flexDirection = FlexDirection.Column;
             root.style.flexGrow = 1;
 

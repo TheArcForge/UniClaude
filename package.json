@@ -1,6 +1,6 @@
 {
   "name": "com.arcforge.uniclaude",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "UniClaude",
   "description": "Claude Code integration for Unity Editor. Conversational AI assistant with project awareness and 60+ editor tools via MCP.",
   "unity": "6000.3",
