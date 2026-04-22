@@ -90,11 +90,11 @@ Unity reloads. After the reload, `git status` should be clean even though UniCla
 
 **To revert:**
 
-Open **Settings → Install Mode → Convert to Standard Mode**. UniClaude re-fetches via UPM and the filter is removed. Use this when your team is ready to adopt UniClaude as a shared dependency.
+Open **Settings → Install Mode → Convert to Standard Mode**. UniClaude stages the changes, opens a progress window, then quits Unity so the embedded package folder can be deleted cleanly. The finalize helper polls Unity's PID, removes the folder, and relaunches Unity. After the restart, the progress window reopens with each step marked ✓ — click **Close** to dismiss. UniClaude is then re-resolved via UPM and the git filter is removed.
 
 **To uninstall entirely:**
 
-**Settings → Install Mode → Delete UniClaude** — works in either mode.
+**Settings → Install Mode → Delete UniClaude** — works in either mode. In Standard mode it removes the package via UPM. In Ninja mode it uses the same quit → delete → relaunch flow as Convert to Standard, but without re-adding the manifest entry.
 
 **Prerequisites:**
 
@@ -103,6 +103,24 @@ Open **Settings → Install Mode → Convert to Standard Mode**. UniClaude re-fe
 - `Packages/manifest.json` and `Packages/packages-lock.json` must be clean (committed or stashed) before conversion.
 
 If the Install Mode buttons are disabled, hover for the reason.
+
+## Staying Up to Date
+
+The **Settings** tab surfaces a version banner pinned above the other settings. It checks GitHub's latest release once per calendar day (cached; no spam).
+
+**States:**
+
+- **Up to date** — current version matches the latest GitHub release. Button: *Check now* (force a fresh check).
+- **Update available: vX.Y.Z** — a newer release exists. Buttons: *View changes* (inline release notes) and *Update now* (one-click update).
+- **Couldn't check** — offline, rate-limited, or no releases published yet. Button: *Retry*.
+
+**Update behavior by install mode:**
+
+- **Standard (UPM via Git URL, tag-pinned).** Update rewrites your `Packages/manifest.json` to the new tag and asks Unity's Package Manager to resolve. A toast confirms; Unity's own progress UI takes over.
+- **Standard (floating ref, e.g. no `#vX.Y.Z` suffix).** The banner shows but *Update now* is disabled — update manually by editing `manifest.json`.
+- **Ninja.** Update runs `git fetch --tags && git checkout vX.Y.Z` in the embedded `Packages/com.arcforge.uniclaude/` clone. A progress window appears; Unity recompiles afterward. **The embedded folder must be clean (no local edits) — commit or stash first.**
+
+**Privacy:** the check hits `https://api.github.com/repos/TheArcForge/UniClaude/releases/latest` with no authentication and a 10-second timeout. No personal data is sent.
 
 ## First Run
 
@@ -169,16 +187,6 @@ Unity's domain reload (triggered by script compilation) temporarily disconnects 
 ### Run the health check
 
 Type `/healthcheck` in the chat input to run a diagnostic pipeline that verifies Node.js, sidecar connectivity, and MCP tool execution. It reports pass/fail for each step and is the fastest way to pinpoint what's broken.
-
-### Setup overlay and main UI render simultaneously after reimport
-
-**Symptoms:** After reimporting the UniClaude package (or any event that triggers a domain reload while the UniClaude window is open), the first-run "UniClaude Setup" card is shown on top of the normal chat UI — both render at the same time instead of the setup being the sole view.
-
-**Cause:** On domain reload, Unity re-runs `OnEnable` on the existing window but does not re-run `CreateGUI`. The UI tree in `rootVisualElement` persists from the previous window lifetime, but the C# references (`_mainContainer`, `_chatPanel`, etc.) are reset to `null`. The deferred setup-state check in `OnEnable` then can't find `_mainContainer` to hide and inserts the setup card on top of the orphaned main UI.
-
-**Workaround:** Close the UniClaude window and reopen it from **ArcForge > UniClaude**. A fresh open rebuilds the tree cleanly.
-
-**Status:** Known issue, not blocking. Fix deferred to a follow-up pass on the window lifecycle.
 
 ### Ninja mode conversion failed partway
 

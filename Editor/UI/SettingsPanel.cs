@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using UniClaude.Editor;
 using UniClaude.Editor.Installer;
 using UniClaude.Editor.MCP;
+using UniClaude.Editor.VersionTracker;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -140,6 +141,13 @@ namespace UniClaude.Editor.UI
             scroll.style.paddingTop = 16;
             scroll.style.paddingLeft = 16;
             scroll.style.paddingRight = 16;
+
+            // Section: Version (first, pinned)
+            var projectRoot = System.IO.Directory.GetCurrentDirectory();
+            var currentPkgVersion = ReadPackageVersion(projectRoot) ?? "unknown";
+            var versionSvc = new VersionCheckService(new GitHubReleaseFetcher(), currentPkgVersion);
+            scroll.Add(new VersionTrackerSection(versionSvc, currentPkgVersion, projectRoot));
+            scroll.Add(MakeSeparator());
 
             // Section: Font Size
             scroll.Add(MakeSectionHeader("Font Size"));
@@ -790,6 +798,24 @@ namespace UniClaude.Editor.UI
             sep.style.marginTop = 8;
             sep.style.marginBottom = 8;
             return sep;
+        }
+
+        /// <summary>Reads the "version" field from Packages/com.arcforge.uniclaude/package.json.</summary>
+        /// <param name="projectRoot">Unity project root.</param>
+        /// <returns>The version string, or null if unavailable.</returns>
+        static string ReadPackageVersion(string projectRoot)
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(projectRoot, "Packages", "com.arcforge.uniclaude", "package.json");
+                if (!System.IO.File.Exists(path)) return null;
+                var json = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path));
+                return (string)json["version"];
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>

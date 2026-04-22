@@ -40,24 +40,45 @@ com.arcforge.uniclaude/
 │   │   ├── MCPSettings.cs               # MCP server configuration (EditorPrefs)
 │   │   ├── MCPToolAttribute.cs          # [MCPTool] and [MCPToolParam] attributes
 │   │   └── MCPToolResult.cs             # Tool execution result type
-│   └── UI/                              # Editor window components
-│       ├── Input/                       # Chat input subsystem
-│       │   ├── AttachmentChip.cs        # Attachment pill UI element
-│       │   ├── AttachmentChipStrip.cs   # Attachment strip layout
-│       │   ├── AttachmentInfo.cs        # Attachment data model
-│       │   ├── AttachmentManager.cs     # File/image validation and staging
-│       │   ├── ChatInputField.cs        # Input field with markdown rendering
-│       │   ├── InputController.cs       # Keyboard shortcuts and event routing
-│       │   └── MessageSubmission.cs     # Message preparation and validation
-│       ├── UniClaudeWindow.cs           # Main EditorWindow (thin orchestrator)
-│       ├── ChatPanel.cs                 # Chat message display and streaming
-│       ├── DiffViewerWindow.cs          # Colored diff popup for script edits
-│       ├── HistoryPanel.cs              # Conversation history browser
-│       ├── SettingsPanel.cs             # Settings UI
-│       ├── PermissionPromptElement.cs   # Tool approval overlay
-│       ├── ThemeContext.cs              # Dark/light theme tokens
-│       ├── ThinkingIndicator.cs         # Spinner animation for streaming
-│       └── MessageRenderer.cs           # Markdown-to-VisualElement rendering
+│   ├── Installer/                       # Install-mode conversion (Ninja ↔ Standard)
+│   │   ├── GitCli.cs                    # Thin synchronous git CLI wrapper
+│   │   ├── InstallMode.cs               # Ninja/Standard/Other enum
+│   │   ├── InstallModeProbe.cs          # Detects current install mode
+│   │   ├── InstallModeSection.cs        # Settings UI for conversion/deletion
+│   │   ├── InstallerBridge.cs           # Orchestrates Unity → Node installer handoff
+│   │   ├── InstallerPostReload.cs       # Post-reload continuation hooks
+│   │   ├── PendingTransitionMarker.cs   # Persisted transition state (survives domain reload)
+│   │   ├── TransitionKind.cs            # ToNinja / ToStandard / DeleteFromNinja
+│   │   ├── TransitionProgressWindow.cs  # Four-row checklist window for conversions
+│   │   └── TransitionStatus.cs          # Status payload written by the Node helper
+│   ├── UI/                              # Editor window components
+│   │   ├── Input/                       # Chat input subsystem
+│   │   │   ├── AttachmentChip.cs        # Attachment pill UI element
+│   │   │   ├── AttachmentChipStrip.cs   # Attachment strip layout
+│   │   │   ├── AttachmentInfo.cs        # Attachment data model
+│   │   │   ├── AttachmentManager.cs     # File/image validation and staging
+│   │   │   ├── ChatInputField.cs        # Input field with markdown rendering
+│   │   │   ├── InputController.cs       # Keyboard shortcuts and event routing
+│   │   │   └── MessageSubmission.cs     # Message preparation and validation
+│   │   ├── UniClaudeWindow.cs           # Main EditorWindow (thin orchestrator)
+│   │   ├── ChatPanel.cs                 # Chat message display and streaming
+│   │   ├── DiffViewerWindow.cs          # Colored diff popup for script edits
+│   │   ├── HistoryPanel.cs              # Conversation history browser
+│   │   ├── SettingsPanel.cs             # Settings UI
+│   │   ├── PermissionPromptElement.cs   # Tool approval overlay
+│   │   ├── ThemeContext.cs              # Dark/light theme tokens
+│   │   ├── ThinkingIndicator.cs         # Spinner animation for streaming
+│   │   └── MessageRenderer.cs           # Markdown-to-VisualElement rendering
+│   └── VersionTracker/                  # GitHub release polling + one-click update
+│       ├── CheckResult.cs               # CheckStatus enum + result snapshot
+│       ├── GitHubReleaseFetcher.cs      # Real HttpClient implementation
+│       ├── IReleaseFetcher.cs           # Fetcher interface + FetchResult
+│       ├── ManifestEditor.cs            # Pure manifest.json inspect + rewrite
+│       ├── NinjaUpdater.cs              # Ninja-mode updater + progress window
+│       ├── SemverCompare.cs             # Semver parse + compare
+│       ├── StandardUpdater.cs           # Standard-mode manifest rewrite + Client.Resolve
+│       ├── VersionCheckService.cs       # Orchestrator with 24h cache
+│       └── VersionTrackerSection.cs     # Settings-tab VisualElement with 4 states
 ├── Tests/                               # Unit and integration tests (36+ fixtures)
 ├── Sidecar~/                            # Node.js bridge (Agent SDK, HTTP server)
 │   └── src/
@@ -67,6 +88,10 @@ com.arcforge.uniclaude/
 │       ├── types.ts                     # Request/response and SSE event types
 │       ├── permissions.ts               # SessionTrust (per-session tool trust)
 │       └── plugins.ts                   # Plugin discovery
+├── Installer~/                          # Node.js installer helpers (Ninja mode conversions)
+│   ├── installer.mjs                    # Entry point (to-ninja, to-standard, delete-from-ninja, finalize-transition)
+│   ├── src/                             # Command implementations and shared utilities
+│   └── tests/                           # Node test suite (vitest-style assertions)
 ├── Skills~/                             # Claude Code skill definitions
 ├── docs/                                # Documentation
 ├── package.json                         # UPM manifest

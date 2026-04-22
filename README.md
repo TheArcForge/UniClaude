@@ -1,6 +1,6 @@
 # UniClaude
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.2.0%20%22Ninja%22-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Unity 6+](https://img.shields.io/badge/Unity-6000.3%2B-black)](https://unity.com)
 
@@ -17,6 +17,8 @@ Claude Code, natively inside Unity Editor. A dockable chat window with full proj
 - **Slash commands** — extensible command system with autocomplete (`/healthcheck`, `/clear`, `/export`, and more)
 - **Diff viewer** — review script edits in a colored diff popup (green/red lines) without leaving UniClaude
 - **Settings panel** — configurable font size, Node.js path, sidecar port, context token budget, and package filtering
+- **Ninja Install Mode** — optional embedded-clone install that hides UniClaude from `git status` and `packages-lock.json` on team projects. Reversible from Settings.
+- **Version tracker** — Settings tab surfaces new releases from GitHub once a day, with inline changelog preview and one-click update (mode-aware for Ninja and Standard installs).
 - **MCP server** — JSON-RPC 2.0 server that exposes Unity editor actions to any MCP-compatible client
 - **Domain reload resilience** — survives Unity's domain reload cycle with automatic reconnection
 
