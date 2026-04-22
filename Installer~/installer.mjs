@@ -6,7 +6,7 @@ import { cleanLockJson, smudgeLockJson } from "./src/filter.mjs";
 import { toNinja } from "./src/commands/to-ninja.mjs";
 import { toStandardPhase1 } from "./src/commands/to-standard.mjs";
 import { deleteFromNinja } from "./src/commands/delete-from-ninja.mjs";
-import { deleteFolder } from "./src/commands/delete-folder.mjs";
+import { finalizeTransition } from "./src/commands/finalize-transition.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -51,24 +51,36 @@ async function main() {
   }
 
   if (sub === "to-standard") {
-    const r = toStandardPhase1({ projectRoot, libraryRoot, installerSourcePath });
+    if (!opts["unity-pid"]) throw new Error("--unity-pid required");
+    if (!opts["unity-app-path"]) throw new Error("--unity-app-path required");
+    const r = toStandardPhase1({
+      projectRoot,
+      libraryRoot,
+      installerSourcePath,
+      unityPid: parseInt(opts["unity-pid"], 10),
+      unityAppPath: opts["unity-app-path"],
+    });
     console.log(JSON.stringify(r));
     return 0;
   }
 
   if (sub === "delete-from-ninja") {
-    const r = deleteFromNinja({ projectRoot, libraryRoot, installerSourcePath });
+    if (!opts["unity-pid"]) throw new Error("--unity-pid required");
+    if (!opts["unity-app-path"]) throw new Error("--unity-app-path required");
+    const r = deleteFromNinja({
+      projectRoot,
+      libraryRoot,
+      installerSourcePath,
+      unityPid: parseInt(opts["unity-pid"], 10),
+      unityAppPath: opts["unity-app-path"],
+    });
     console.log(JSON.stringify(r));
     return 0;
   }
 
-  if (sub === "delete-folder") {
-    await deleteFolder({
-      path: opts["path"],
-      touchManifest: opts["touch-manifest"],
-      waitMs: parseInt(opts["wait-ms"] || "15000", 10),
-      statusPath: opts["status-path"],
-    });
+  if (sub === "finalize-transition") {
+    if (!opts["marker"]) throw new Error("--marker required");
+    await finalizeTransition({ markerPath: opts["marker"] });
     return 0;
   }
 

@@ -1,18 +1,14 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { spawn } from "node:child_process";
 import { readManifest, writeManifest, addPackage } from "../manifest.mjs";
 import { readFilterManifest } from "../filter-manifest.mjs";
 import { removeSentinel } from "../exclude.mjs";
 import { removeFilterLine } from "../attributes.mjs";
 import { git } from "../git.mjs";
+import { writeMarker } from "../transition-marker.mjs";
+import { writeStatus } from "../transition-status-writer.mjs";
 
 const UNICLAUDE_NAME = "com.arcforge.uniclaude";
-
-function defaultSpawnDetached(cmd, args) {
-  const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
-  child.unref();
-}
 
 function resolveRestoreSpec(libraryRoot, packagePath) {
   const fm = readFilterManifest(join(libraryRoot, "filter-manifest.json"));
@@ -34,13 +30,21 @@ export function toStandardPhase1({
   projectRoot,
   libraryRoot,
   installerSourcePath,
-  spawnDetached = defaultSpawnDetached,
-  nodeBinary = process.execPath,
-  deleteWaitMs = 15000,
+  unityPid,
+  unityAppPath,
 }) {
+  if (!Number.isInteger(unityPid) || unityPid <= 0) {
+    throw new Error("unityPid required (positive integer)");
+  }
+  if (!unityAppPath || typeof unityAppPath !== "string") {
+    throw new Error("unityAppPath required");
+  }
+
   const manifestPath = join(projectRoot, "Packages", "manifest.json");
   const packagePath = join(projectRoot, "Packages", UNICLAUDE_NAME);
   const persistentInstaller = join(libraryRoot, "installer-persistent.mjs");
+  const markerPath = join(libraryRoot, "pending-transition.json");
+  const statusPath = join(libraryRoot, "transition-status.json");
 
   mkdirSync(libraryRoot, { recursive: true });
   if (existsSync(installerSourcePath)) {
@@ -62,21 +66,22 @@ export function toStandardPhase1({
   git(projectRoot, ["config", "--unset", "filter.uniclaude.smudge"]);
   git(projectRoot, ["config", "--unset", "filter.uniclaude.required"]);
   removeFilterLine(projectRoot);
-
   removeSentinel(projectRoot);
 
   const manifest = readManifest(manifestPath);
   addPackage(manifest, UNICLAUDE_NAME, restoreSpec);
   writeManifest(manifestPath, manifest);
 
-  spawnDetached(nodeBinary, [
-    persistentInstaller,
-    "delete-folder",
-    "--path", packagePath,
-    "--touch-manifest", manifestPath,
-    "--wait-ms", String(deleteWaitMs),
-    "--status-path", join(libraryRoot, "transition-status.json"),
-  ]);
+  writeMarker(markerPath, {
+    kind: "to-standard",
+    unityPid,
+    unityAppPath,
+    projectPath: projectRoot,
+    packagePath,
+    statusPath,
+    createdAt: new Date().toISOString(),
+  });
+  writeStatus(statusPath, "to-standard", { step: "staged", result: "in-progress" });
 
-  return { result: "ok", mode: "standard-pending" };
+  return { result: "ok", mode: "standard-pending", markerPath };
 }

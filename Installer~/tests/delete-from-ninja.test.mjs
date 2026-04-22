@@ -33,17 +33,19 @@ function setupNinja() {
   return { dir: root, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-test("delete-from-ninja: uninstalls filter, strips sentinel, schedules delete, leaves manifest alone", () => {
+test("delete-from-ninja: uninstalls filter, strips sentinel, writes marker + staged status, leaves manifest alone", () => {
   const r = setupNinja();
   try {
-    const spawned = [];
     const result = deleteFromNinja({
       projectRoot: r.dir,
       libraryRoot: join(r.dir, "Library", "UniClaude"),
       installerSourcePath: "nonexistent",
-      spawnDetached: (cmd, args) => spawned.push({ cmd, args }),
+      unityPid: 9001,
+      unityAppPath: "/Applications/Unity.app/Contents/MacOS/Unity",
     });
     assert.equal(result.result, "ok");
+    assert.equal(result.mode, "delete-pending");
+    assert.equal(result.markerPath, join(r.dir, "Library", "UniClaude", "pending-transition.json"));
 
     const excl = readFileSync(join(r.dir, ".git", "info", "exclude"), "utf8");
     assert.doesNotMatch(excl, /UniClaude ninja-mode/);
@@ -54,7 +56,14 @@ test("delete-from-ninja: uninstalls filter, strips sentinel, schedules delete, l
     const manifest = JSON.parse(readFileSync(join(r.dir, "Packages", "manifest.json"), "utf8"));
     assert.equal(manifest.dependencies["com.arcforge.uniclaude"], undefined, "no re-add");
 
-    assert.equal(spawned.length, 1);
-    assert.match(spawned[0].args.join(" "), /delete-folder/);
+    const marker = JSON.parse(readFileSync(result.markerPath, "utf8"));
+    assert.equal(marker.kind, "delete-from-ninja");
+    assert.equal(marker.unityPid, 9001);
+    assert.equal(marker.packagePath, join(r.dir, "Packages", "com.arcforge.uniclaude"));
+
+    const status = JSON.parse(readFileSync(marker.statusPath, "utf8"));
+    assert.equal(status.command, "delete-from-ninja");
+    assert.equal(status.step, "staged");
+    assert.equal(status.result, "in-progress");
   } finally { r.cleanup(); }
 });

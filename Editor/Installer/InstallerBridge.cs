@@ -10,15 +10,13 @@ using Debug = UnityEngine.Debug;
 namespace UniClaude.Editor.Installer
 {
     /// <summary>
-    /// Bridges Unity UI to the Node installer script.
-    /// Spawns synchronous subprocesses, parses the JSON status they produce,
-    /// and persists a transition key across domain reloads via EditorPrefs.
+    /// Bridges Unity UI to the Node installer script. Supports two operation
+    /// modes: synchronous (ToNinja, where Unity stays alive) and staged
+    /// (ToStandard / DeleteFromNinja, where Unity quits and hands off to the
+    /// external finalize-transition helper).
     /// </summary>
     public static class InstallerBridge
     {
-        /// <summary>EditorPrefs key used to checkpoint transition state across reloads.</summary>
-        public const string TransitionKey = "UniClaude.Transition";
-
         /// <summary>Supported installer subcommands.</summary>
         public enum Subcommand { ToNinja, ToStandard, DeleteFromNinja }
 
@@ -33,27 +31,18 @@ namespace UniClaude.Editor.Installer
             public string Stderr;
             /// <summary>JSON parse error message when stdout was non-empty but unparseable; null otherwise.</summary>
             public string ParseError;
+            /// <summary>Absolute path to the pending-transition.json marker (only set for staged subcommands).</summary>
+            public string MarkerPath;
         }
 
         /// <summary>Run an installer subcommand synchronously and return the parsed status.</summary>
-        /// <param name="cmd">Subcommand to run.</param>
-        /// <param name="projectRoot">Unity project root.</param>
-        /// <param name="gitUrl">Required for ToNinja; ignored otherwise.</param>
-        /// <param name="installerPath">Absolute path to installer.mjs.</param>
-        /// <param name="nodePath">Node.js binary path (null = plain "node" on PATH).</param>
-        /// <returns>Outcome.</returns>
         public static Outcome Run(
             Subcommand cmd, string projectRoot, string gitUrl,
             string installerPath, string nodePath = null)
         {
             try
             {
-                var node = nodePath;
-                if (string.IsNullOrEmpty(node))
-                {
-                    var settings = UniClaudeSettings.Load();
-                    node = SidecarManager.FindNodeBinary(settings.NodePath);
-                }
+                var node = ResolveNodeBinary(nodePath);
                 if (string.IsNullOrEmpty(node))
                     return new Outcome { ExitCode = -1, Stderr = "Node.js binary not found. Set the path in UniClaude Settings." };
 
@@ -79,13 +68,29 @@ namespace UniClaude.Editor.Installer
 
                 TransitionStatus status = null;
                 string parseError = null;
+                string markerPath = null;
                 if (!string.IsNullOrWhiteSpace(stdout))
                 {
-                    try { status = JsonConvert.DeserializeObject<TransitionStatus>(stdout.Trim()); }
+                    try
+                    {
+                        status = JsonConvert.DeserializeObject<TransitionStatus>(stdout.Trim());
+                        // Also look for markerPath in the raw JSON; TransitionStatus doesn't have that field
+                        // but it's present in stdout as a top-level key.
+                        var raw = JsonConvert.DeserializeObject<Dictionary<string, object>>(stdout.Trim());
+                        if (raw != null && raw.TryGetValue("markerPath", out var mp) && mp is string mpStr)
+                            markerPath = mpStr;
+                    }
                     catch (System.Exception ex) { parseError = ex.Message; }
                 }
 
-                return new Outcome { ExitCode = proc.ExitCode, Status = status, Stderr = stderr, ParseError = parseError };
+                return new Outcome
+                {
+                    ExitCode = proc.ExitCode,
+                    Status = status,
+                    Stderr = stderr,
+                    ParseError = parseError,
+                    MarkerPath = markerPath,
+                };
             }
             catch (System.Exception ex)
             {
@@ -93,11 +98,71 @@ namespace UniClaude.Editor.Installer
             }
         }
 
+        /// <summary>
+        /// Run a staged subcommand (ToStandard or DeleteFromNinja), open the
+        /// progress window, spawn the finalize-transition helper detached, and
+        /// quit Unity. Returns without waiting.
+        /// </summary>
+        /// <returns>True if staging succeeded and Unity is about to exit; false if staging failed.</returns>
+        public static bool StageAndExit(
+            Subcommand cmd, string projectRoot, string installerPath, string nodePath = null)
+        {
+            if (cmd != Subcommand.ToStandard && cmd != Subcommand.DeleteFromNinja)
+                throw new System.ArgumentException($"StageAndExit not supported for {cmd}");
+
+            var node = ResolveNodeBinary(nodePath);
+            if (string.IsNullOrEmpty(node))
+            {
+                EditorUtility.DisplayDialog("Node.js not found",
+                    "Set the Node.js path in UniClaude Settings.", "OK");
+                return false;
+            }
+
+            var outcome = Run(cmd, projectRoot, null, installerPath, node);
+            if (outcome.ExitCode != 0 || outcome.Status?.Result != "ok" || string.IsNullOrEmpty(outcome.MarkerPath))
+            {
+                EditorUtility.DisplayDialog("Conversion failed",
+                    outcome.Status?.Error ?? outcome.Stderr ?? outcome.ParseError ?? "Unknown error",
+                    "OK");
+                return false;
+            }
+
+            var kind = cmd == Subcommand.ToStandard ? TransitionKind.ToStandard : TransitionKind.DeleteFromNinja;
+            TransitionProgressWindow.OpenForNewTransition(kind, outcome.MarkerPath);
+
+            SpawnFinalizeHelper(node, installerPath, outcome.MarkerPath);
+
+            EditorApplication.delayCall += () => EditorApplication.Exit(0);
+            return true;
+        }
+
+        static void SpawnFinalizeHelper(string node, string installerPath, string markerPath)
+        {
+            var libraryInstaller = Path.Combine(
+                Path.GetDirectoryName(markerPath), "installer-persistent.mjs");
+            var entry = File.Exists(libraryInstaller) ? libraryInstaller : installerPath;
+
+            var psi = new ProcessStartInfo(node)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(markerPath),
+            };
+            psi.ArgumentList.Add(entry);
+            psi.ArgumentList.Add("finalize-transition");
+            psi.ArgumentList.Add("--marker");
+            psi.ArgumentList.Add(markerPath);
+            Process.Start(psi);
+        }
+
+        static string ResolveNodeBinary(string explicitPath)
+        {
+            if (!string.IsNullOrEmpty(explicitPath)) return explicitPath;
+            var settings = UniClaudeSettings.Load();
+            return SidecarManager.FindNodeBinary(settings.NodePath);
+        }
+
         /// <summary>Build the argv for a given subcommand.</summary>
-        /// <param name="cmd">Subcommand.</param>
-        /// <param name="projectRoot">Project root.</param>
-        /// <param name="gitUrl">Git URL for ToNinja; null otherwise.</param>
-        /// <returns>Argument list (without the node binary or installer path).</returns>
         public static string[] BuildArgs(Subcommand cmd, string projectRoot, string gitUrl)
         {
             var sub = cmd switch
@@ -116,12 +181,17 @@ namespace UniClaude.Editor.Installer
                 list.Add("--git-url");
                 list.Add(gitUrl);
             }
+            if (cmd == Subcommand.ToStandard || cmd == Subcommand.DeleteFromNinja)
+            {
+                list.Add("--unity-pid");
+                list.Add(Process.GetCurrentProcess().Id.ToString());
+                list.Add("--unity-app-path");
+                list.Add(EditorApplication.applicationPath);
+            }
             return list.ToArray();
         }
 
         /// <summary>Absolute path to the packaged installer.mjs.</summary>
-        /// <param name="projectRoot">Project root.</param>
-        /// <returns>Path to installer.mjs inside the resolved UniClaude package (Library/PackageCache in Standard mode, Packages/com.arcforge.uniclaude in Ninja mode).</returns>
         public static string FindInstallerPath(string projectRoot)
         {
             var pkg = UnityEditor.PackageManager.PackageInfo
@@ -129,30 +199,6 @@ namespace UniClaude.Editor.Installer
             if (pkg != null && !string.IsNullOrEmpty(pkg.resolvedPath))
                 return Path.Combine(pkg.resolvedPath, "Installer~", "installer.mjs");
             return Path.Combine(projectRoot, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs");
-        }
-
-        /// <summary>Persist a transition checkpoint with a timestamp.</summary>
-        /// <param name="value">Value to store (use empty string to clear).</param>
-        public static void WriteCheckpoint(string value)
-        {
-            EditorPrefs.SetString(TransitionKey, value ?? "");
-            EditorPrefs.SetString(TransitionKey + ".At",
-                value != null ? System.DateTime.UtcNow.ToString("O") : "");
-        }
-
-        /// <summary>Read the current transition checkpoint (empty string if none).</summary>
-        /// <returns>Current checkpoint value.</returns>
-        public static string ReadCheckpoint() => EditorPrefs.GetString(TransitionKey, "");
-
-        /// <summary>Read the timestamp when the current checkpoint was set.</summary>
-        /// <returns>UTC timestamp, or DateTime.MinValue if none/unparseable.</returns>
-        public static System.DateTime ReadCheckpointTimestamp()
-        {
-            var ts = EditorPrefs.GetString(TransitionKey + ".At", "");
-            if (string.IsNullOrEmpty(ts)) return System.DateTime.MinValue;
-            return System.DateTime.TryParse(ts, null,
-                System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
-                ? dt : System.DateTime.MinValue;
         }
     }
 }

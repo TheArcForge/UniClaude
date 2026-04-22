@@ -118,7 +118,6 @@ namespace UniClaude.Editor.Installer
                 .FindForAssembly(typeof(InstallModeSection).Assembly)?.packageId;
             gitUrl = ExtractGitUrl(gitUrl);
 
-            InstallerBridge.WriteCheckpoint("to-ninja:pending");
             var outcome = InstallerBridge.Run(
                 InstallerBridge.Subcommand.ToNinja,
                 _projectRoot, gitUrl,
@@ -126,7 +125,6 @@ namespace UniClaude.Editor.Installer
 
             if (outcome.ExitCode != 0 || outcome.Status?.Result != "ok")
             {
-                InstallerBridge.WriteCheckpoint("");
                 EditorUtility.DisplayDialog("Conversion failed",
                     outcome.Status?.Error ?? outcome.Stderr ?? "Unknown error",
                     "OK");
@@ -144,32 +142,16 @@ namespace UniClaude.Editor.Installer
                 "This will:\n" +
                 "\u2022 Uninstall the git clean/smudge filter\n" +
                 "\u2022 Restore the UniClaude entry in Packages/manifest.json\n" +
-                "\u2022 Schedule deletion of the embedded package folder (~15s)\n" +
-                "\u2022 Let Unity fetch UniClaude into the Package Cache\n\n" +
+                "\u2022 Quit Unity, delete the embedded package folder, and reopen Unity\n\n" +
+                "A progress window will show each step and persist across the restart.\n\n" +
                 "Continue?",
                 "Convert", "Cancel");
             if (!confirm) return;
 
-            InstallerBridge.WriteCheckpoint("to-standard:phase1");
-            var outcome = InstallerBridge.Run(
+            InstallerBridge.StageAndExit(
                 InstallerBridge.Subcommand.ToStandard,
-                _projectRoot, null,
+                _projectRoot,
                 InstallerBridge.FindInstallerPath(_projectRoot));
-
-            if (outcome.ExitCode != 0 || outcome.Status?.Result != "ok")
-            {
-                InstallerBridge.WriteCheckpoint("");
-                EditorUtility.DisplayDialog("Conversion failed",
-                    outcome.Status?.Error ?? outcome.Stderr ?? "Unknown error",
-                    "OK");
-                Refresh();
-                return;
-            }
-
-            EditorUtility.DisplayDialog("Converting\u2026",
-                "UniClaude will delete the embedded package in ~15 seconds and Unity will " +
-                "re-resolve from the package cache. The editor will reload automatically.",
-                "OK");
         }
 
         void DeleteUniClaude()
@@ -188,20 +170,10 @@ namespace UniClaude.Editor.Installer
 
             if (_status.Mode == InstallMode.Ninja)
             {
-                InstallerBridge.WriteCheckpoint("delete-from-ninja:pending");
-                var outcome = InstallerBridge.Run(
+                InstallerBridge.StageAndExit(
                     InstallerBridge.Subcommand.DeleteFromNinja,
-                    _projectRoot, null,
+                    _projectRoot,
                     InstallerBridge.FindInstallerPath(_projectRoot));
-
-                if (outcome.ExitCode != 0 || outcome.Status?.Result != "ok")
-                {
-                    InstallerBridge.WriteCheckpoint("");
-                    EditorUtility.DisplayDialog("Delete failed",
-                        outcome.Status?.Error ?? outcome.Stderr ?? "Unknown error",
-                        "OK");
-                    Refresh();
-                }
             }
         }
 

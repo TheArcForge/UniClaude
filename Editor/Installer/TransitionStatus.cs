@@ -18,11 +18,14 @@ namespace UniClaude.Editor.Installer
         /// <summary>"ninja" | "standard" | "deleted" | "unknown".</summary>
         [JsonProperty("mode")] public string Mode { get; set; }
 
-        /// <summary>Last completed step name, if applicable.</summary>
+        /// <summary>Last completed step name. For the conversion flow: "staged" | "awaiting-exit" | "deleting" | "relaunching" | "complete".</summary>
         [JsonProperty("step")] public string Step { get; set; }
 
         /// <summary>User-facing error message when Result == "error".</summary>
         [JsonProperty("error")] public string Error { get; set; }
+
+        /// <summary>User-facing error message when relaunch failed even though the conversion itself succeeded.</summary>
+        [JsonProperty("relaunchError")] public string RelaunchError { get; set; }
 
         /// <summary>ISO-8601 write time.</summary>
         [JsonProperty("timestamp")] public string Timestamp { get; set; }

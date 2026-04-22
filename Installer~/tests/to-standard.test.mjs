@@ -43,26 +43,25 @@ function setupNinjaProject() {
   mkdirSync(join(root, "Library", "UniClaude"), { recursive: true });
   writeFileSync(join(root, "Library", "UniClaude", "filter-manifest.json"),
     JSON.stringify({ owned: { "com.arcforge.uniclaude": { version: "...", dependencies: {} } } }, null, 2) + "\n");
-
-  // Pre-seed persistent installer so the impl doesn't throw when installerSourcePath is absent
   writeFileSync(join(root, "Library", "UniClaude", "installer-persistent.mjs"), "// stub\n");
 
   return { dir: root, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-test("to-standard-phase1: uninstalls filter, strips sentinel, adds manifest entry, spawns deleter", () => {
+test("to-standard: uninstalls filter, strips sentinel, restores manifest, writes marker + staged status", () => {
   const r = setupNinjaProject();
   try {
-    const spawned = [];
     const result = toStandardPhase1({
       projectRoot: r.dir,
       libraryRoot: join(r.dir, "Library", "UniClaude"),
       installerSourcePath: join(r.dir, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs"),
-      spawnDetached: (cmd, args) => spawned.push({ cmd, args }),
-      nodeBinary: "/fake/node",
+      unityPid: 4242,
+      unityAppPath: "/Applications/Unity.app/Contents/MacOS/Unity",
     });
 
     assert.equal(result.result, "ok");
+    assert.equal(result.mode, "standard-pending");
+    assert.equal(result.markerPath, join(r.dir, "Library", "UniClaude", "pending-transition.json"));
 
     const manifest = JSON.parse(readFileSync(join(r.dir, "Packages", "manifest.json"), "utf8"));
     assert.equal(
@@ -78,18 +77,25 @@ test("to-standard-phase1: uninstalls filter, strips sentinel, adds manifest entr
     const clean = spawnSync("git", ["config", "--get", "filter.uniclaude.clean"], { cwd: r.dir });
     assert.notEqual(clean.status, 0);
 
-    assert.equal(spawned.length, 1);
-    assert.equal(spawned[0].cmd, "/fake/node");
-    assert.match(spawned[0].args.join(" "), /delete-folder/);
-    assert.match(spawned[0].args.join(" "), /Packages\/com\.arcforge\.uniclaude/);
+    const marker = JSON.parse(readFileSync(result.markerPath, "utf8"));
+    assert.equal(marker.kind, "to-standard");
+    assert.equal(marker.unityPid, 4242);
+    assert.equal(marker.unityAppPath, "/Applications/Unity.app/Contents/MacOS/Unity");
+    assert.equal(marker.projectPath, r.dir);
+    assert.equal(marker.packagePath, join(r.dir, "Packages", "com.arcforge.uniclaude"));
+    assert.equal(marker.statusPath, join(r.dir, "Library", "UniClaude", "transition-status.json"));
+    assert.match(marker.createdAt, /^\d{4}-\d{2}-\d{2}T/);
+
+    const status = JSON.parse(readFileSync(marker.statusPath, "utf8"));
+    assert.equal(status.command, "to-standard");
+    assert.equal(status.step, "staged");
+    assert.equal(status.result, "in-progress");
   } finally { r.cleanup(); }
 });
 
-test("to-standard-phase1: prefers filter-manifest.originalSpec over package.json repository.url", () => {
+test("to-standard: prefers filter-manifest.originalSpec over package.json repository.url", () => {
   const r = setupNinjaProject();
   try {
-    // Overwrite the seeded filter-manifest.json to include a preserved original spec
-    // (this is what to-ninja now saves).
     writeFileSync(join(r.dir, "Library", "UniClaude", "filter-manifest.json"),
       JSON.stringify({
         owned: { "com.arcforge.uniclaude": { version: "...", dependencies: {} } },
@@ -100,12 +106,36 @@ test("to-standard-phase1: prefers filter-manifest.originalSpec over package.json
       projectRoot: r.dir,
       libraryRoot: join(r.dir, "Library", "UniClaude"),
       installerSourcePath: join(r.dir, "Packages", "com.arcforge.uniclaude", "Installer~", "installer.mjs"),
-      spawnDetached: () => {},
+      unityPid: 1,
+      unityAppPath: "/u",
     });
 
     const manifest = JSON.parse(readFileSync(join(r.dir, "Packages", "manifest.json"), "utf8"));
     assert.equal(
       manifest.dependencies["com.arcforge.uniclaude"],
       "git+https://github.com/TheArcForge/UniClaude.git#feature/ninja-mode");
+  } finally { r.cleanup(); }
+});
+
+test("to-standard: copies src/ alongside persistent installer", () => {
+  const r = setupNinjaProject();
+  try {
+    const installerDir = join(r.dir, "InstallerSource");
+    mkdirSync(join(installerDir, "src", "commands"), { recursive: true });
+    writeFileSync(join(installerDir, "installer.mjs"), "// entry\n");
+    writeFileSync(join(installerDir, "src", "a.mjs"), "// a\n");
+    writeFileSync(join(installerDir, "src", "commands", "b.mjs"), "// b\n");
+
+    toStandardPhase1({
+      projectRoot: r.dir,
+      libraryRoot: join(r.dir, "Library", "UniClaude"),
+      installerSourcePath: join(installerDir, "installer.mjs"),
+      unityPid: 1,
+      unityAppPath: "/u",
+    });
+
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "installer-persistent.mjs")));
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "src", "a.mjs")));
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "src", "commands", "b.mjs")));
   } finally { r.cleanup(); }
 });
