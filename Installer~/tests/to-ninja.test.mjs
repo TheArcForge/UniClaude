@@ -206,6 +206,34 @@ test("to-ninja: defaultClone handles git+file:// URL with branch fragment (real 
   } finally { rmSync(upstream, { recursive: true, force: true }); }
 });
 
+test("to-ninja: copies src/ tree so persistent installer can resolve imports", () => {
+  const r = setupProject();
+  try {
+    // Seed a realistic Installer~ tree with src/ subdir
+    const installerDir = join(r.dir, "Installer~");
+    mkdirSync(join(installerDir, "src", "commands"), { recursive: true });
+    writeFileSync(join(installerDir, "installer.mjs"), "// entry\n");
+    writeFileSync(join(installerDir, "src", "filter-manifest.mjs"), "// dep\n");
+    writeFileSync(join(installerDir, "src", "commands", "to-ninja.mjs"), "// nested dep\n");
+
+    toNinja({
+      projectRoot: r.dir,
+      gitUrl: "https://example.invalid/uniclaude.git",
+      cloneFn: (url, dest) => {
+        mkdirSync(dest, { recursive: true });
+        writeFileSync(join(dest, "package.json"),
+          JSON.stringify({ name: "com.arcforge.uniclaude", version: "0.1.0" }, null, 2) + "\n");
+      },
+      libraryRoot: join(r.dir, "Library", "UniClaude"),
+      installerSourcePath: join(installerDir, "installer.mjs"),
+    });
+
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "installer-persistent.mjs")));
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "src", "filter-manifest.mjs")));
+    assert.ok(existsSync(join(r.dir, "Library", "UniClaude", "src", "commands", "to-ninja.mjs")));
+  } finally { r.cleanup(); }
+});
+
 test("to-ninja: aborts when packages-lock.json is missing", () => {
   const r = setupProject();
   try {

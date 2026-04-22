@@ -1,5 +1,5 @@
-import { mkdirSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, copyFileSync, cpSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readManifest, writeManifest, removePackage } from "../manifest.mjs";
 import { readLock } from "../lock.mjs";
@@ -63,6 +63,14 @@ export function toNinja({
 
   if (existsSync(installerSourcePath)) {
     copyFileSync(installerSourcePath, persistentInstaller);
+    // The persistent installer imports from ./src/*, so the src tree must live
+    // next to it — git invokes this copy from Library/ after Packages/ is gone.
+    const srcSource = join(dirname(installerSourcePath), "src");
+    const srcDest = join(libraryRoot, "src");
+    if (existsSync(srcSource)) {
+      rmSync(srcDest, { recursive: true, force: true });
+      cpSync(srcSource, srcDest, { recursive: true });
+    }
   } else {
     writeFileSync(persistentInstaller, "// installer placeholder\n");
   }

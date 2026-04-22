@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 import { removeSentinel } from "../exclude.mjs";
 import { removeFilterLine } from "../attributes.mjs";
@@ -25,7 +25,15 @@ export function deleteFromNinja({
   const persistentInstaller = join(libraryRoot, "installer-persistent.mjs");
 
   mkdirSync(libraryRoot, { recursive: true });
-  if (existsSync(installerSourcePath)) copyFileSync(installerSourcePath, persistentInstaller);
+  if (existsSync(installerSourcePath)) {
+    copyFileSync(installerSourcePath, persistentInstaller);
+    const srcSource = join(dirname(installerSourcePath), "src");
+    const srcDest = join(libraryRoot, "src");
+    if (existsSync(srcSource)) {
+      rmSync(srcDest, { recursive: true, force: true });
+      cpSync(srcSource, srcDest, { recursive: true });
+    }
+  }
   if (!existsSync(persistentInstaller)) {
     throw new Error(`persistent installer missing: ${persistentInstaller}`);
   }

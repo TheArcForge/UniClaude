@@ -170,6 +170,16 @@ Unity's domain reload (triggered by script compilation) temporarily disconnects 
 
 Type `/healthcheck` in the chat input to run a diagnostic pipeline that verifies Node.js, sidecar connectivity, and MCP tool execution. It reports pass/fail for each step and is the fastest way to pinpoint what's broken.
 
+### Setup overlay and main UI render simultaneously after reimport
+
+**Symptoms:** After reimporting the UniClaude package (or any event that triggers a domain reload while the UniClaude window is open), the first-run "UniClaude Setup" card is shown on top of the normal chat UI — both render at the same time instead of the setup being the sole view.
+
+**Cause:** On domain reload, Unity re-runs `OnEnable` on the existing window but does not re-run `CreateGUI`. The UI tree in `rootVisualElement` persists from the previous window lifetime, but the C# references (`_mainContainer`, `_chatPanel`, etc.) are reset to `null`. The deferred setup-state check in `OnEnable` then can't find `_mainContainer` to hide and inserts the setup card on top of the orphaned main UI.
+
+**Workaround:** Close the UniClaude window and reopen it from **ArcForge > UniClaude**. A fresh open rebuilds the tree cleanly.
+
+**Status:** Known issue, not blocking. Fix deferred to a follow-up pass on the window lifecycle.
+
 ### Ninja mode conversion failed partway
 
 **Symptoms:** Install Mode section shows "Currently: Other" after a "Convert to Ninja Mode" attempt, and the Settings buttons are disabled.
