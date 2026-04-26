@@ -59,6 +59,76 @@ namespace UniClaude.Editor.MCP
         }
 
         /// <summary>
+        /// Creates a primitive GameObject (Cube, Sphere, Plane, etc.) with optional transform and parenting.
+        /// </summary>
+        [MCPTool("scene_create_primitive", "Create a primitive shape (Cube, Sphere, Plane, Capsule, Cylinder, Quad) with optional position, rotation, scale, and parent")]
+        public static MCPToolResult CreatePrimitive(
+            [MCPToolParam("Primitive type: Cube, Sphere, Plane, Capsule, Cylinder, Quad", required: true)] string type,
+            [MCPToolParam("Custom name (defaults to primitive type name)")] string name,
+            [MCPToolParam("Position as JSON array [x,y,z]")] string position,
+            [MCPToolParam("Rotation as euler angles JSON array [x,y,z]")] string rotation,
+            [MCPToolParam("Scale as JSON array [x,y,z]")] string scale,
+            [MCPToolParam("Parent GameObject path")] string parent)
+        {
+            if (!Enum.TryParse<PrimitiveType>(type, true, out var primitiveType))
+                return MCPToolResult.Error(
+                    $"Invalid primitive type: '{type}'. Valid types: Cube, Sphere, Plane, Capsule, Cylinder, Quad");
+
+            var go = GameObject.CreatePrimitive(primitiveType);
+            if (!string.IsNullOrEmpty(name))
+                go.name = name;
+
+            if (!string.IsNullOrEmpty(parent))
+            {
+                var parentGo = GameObjectResolver.FindByPath(parent);
+                if (parentGo == null)
+                {
+                    UnityEngine.Object.DestroyImmediate(go);
+                    var rootNames = GetRootObjectNames();
+                    return MCPToolResult.Error(
+                        $"Parent not found: {parent}. Root objects in scene: {string.Join(", ", rootNames)}");
+                }
+                go.transform.SetParent(parentGo.transform);
+            }
+
+            if (!string.IsNullOrEmpty(position))
+            {
+                try
+                {
+                    var p = JsonConvert.DeserializeObject<float[]>(position);
+                    if (p is { Length: 3 })
+                        go.transform.localPosition = new Vector3(p[0], p[1], p[2]);
+                }
+                catch { /* ignore invalid JSON, use default position */ }
+            }
+
+            if (!string.IsNullOrEmpty(rotation))
+            {
+                try
+                {
+                    var r = JsonConvert.DeserializeObject<float[]>(rotation);
+                    if (r is { Length: 3 })
+                        go.transform.localEulerAngles = new Vector3(r[0], r[1], r[2]);
+                }
+                catch { /* ignore invalid JSON, use default rotation */ }
+            }
+
+            if (!string.IsNullOrEmpty(scale))
+            {
+                try
+                {
+                    var s = JsonConvert.DeserializeObject<float[]>(scale);
+                    if (s is { Length: 3 })
+                        go.transform.localScale = new Vector3(s[0], s[1], s[2]);
+                }
+                catch { /* ignore invalid JSON, use default scale */ }
+            }
+
+            Undo.RegisterCreatedObjectUndo(go, $"MCP Create Primitive {type}");
+            return MCPToolResult.Success(new { name = go.name, type = type, path = GetPath(go) });
+        }
+
+        /// <summary>
         /// Deletes a GameObject from the scene with Undo support.
         /// </summary>
         /// <param name="path">Name or hierarchy path of the GameObject to delete.</param>

@@ -98,25 +98,6 @@ namespace UniClaude.Editor.MCP
     /// </summary>
     public class MCPDispatcher
     {
-        const string SearchToolName = "search_unity_tools";
-        const string CallToolName = "call_unity_tool";
-        const string ProjectSearchToolName = "project_search";
-
-        const string SearchToolDescription =
-            "Search Unity editor tools by keyword. Available categories: " +
-            "Scene (hierarchy, create, save, open), " +
-            "Prefabs (create, instantiate, edit, variant), " +
-            "Components (add, remove, get/set properties), " +
-            "Materials (create, assign, shader properties), " +
-            "Assets (find, move, import, info), " +
-            "Files (read, write, create/modify scripts), " +
-            "Animation (controllers, clips), " +
-            "Events (listeners), " +
-            "References (set, get, find unset), " +
-            "Tags/Layers (create, list), " +
-            "Project (tests, console, settings, recompile). " +
-            "Returns matching tool names, descriptions, and full parameter schemas.";
-
         readonly Dictionary<string, ToolRegistration> _tools;
 
         /// <summary>
@@ -224,59 +205,13 @@ namespace UniClaude.Editor.MCP
         {
             var toolsArray = new JArray();
 
-            // 1. search_unity_tools
-            toolsArray.Add(new JObject
-            {
-                ["name"] = SearchToolName,
-                ["description"] = SearchToolDescription,
-                ["inputSchema"] = new JObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JObject
-                    {
-                        ["query"] = new JObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "Keywords to search for (e.g. 'material color', 'prefab create', 'scene hierarchy')"
-                        }
-                    },
-                    ["required"] = new JArray("query")
-                }
-            });
-
-            // 2. call_unity_tool
-            toolsArray.Add(new JObject
-            {
-                ["name"] = CallToolName,
-                ["description"] = "Call a Unity editor tool by name. Use search_unity_tools first to find available tools and their parameter schemas.",
-                ["inputSchema"] = new JObject
-                {
-                    ["type"] = "object",
-                    ["properties"] = new JObject
-                    {
-                        ["tool"] = new JObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "Tool name from search results (e.g. 'material_set_property')"
-                        },
-                        ["input"] = new JObject
-                        {
-                            ["type"] = "string",
-                            ["description"] = "JSON object of tool parameters matching the tool's inputSchema"
-                        }
-                    },
-                    ["required"] = new JArray("tool", "input")
-                }
-            });
-
-            // 3. project_search — pulled from discovered tools registry
-            if (_tools.TryGetValue(ProjectSearchToolName, out var projectSearch))
+            foreach (var tool in _tools.Values)
             {
                 toolsArray.Add(new JObject
                 {
-                    ["name"] = projectSearch.Name,
-                    ["description"] = projectSearch.Description,
-                    ["inputSchema"] = projectSearch.GetInputSchema()
+                    ["name"] = tool.Name,
+                    ["description"] = tool.Description,
+                    ["inputSchema"] = tool.GetInputSchema()
                 });
             }
 
@@ -290,106 +225,8 @@ namespace UniClaude.Editor.MCP
                 return CreateErrorResponse(id, -32602, "Missing tool name");
 
             var arguments = parameters["arguments"] as JObject ?? new JObject();
-
-            MCPToolResult toolResult;
-            if (toolName == SearchToolName)
-                toolResult = SearchTools(arguments);
-            else if (toolName == CallToolName)
-                toolResult = HandleCallUnityTool(arguments);
-            else if (toolName == ProjectSearchToolName)
-                toolResult = CallTool(toolName, arguments);
-            else
-                toolResult = MCPToolResult.Error(
-                    $"Unknown tool: '{toolName}'. Available tools: {SearchToolName}, {CallToolName}, {ProjectSearchToolName}");
-
+            var toolResult = CallTool(toolName, arguments);
             return CreateSuccessResponse(id, toolResult.ToMCPResponse());
-        }
-
-        MCPToolResult SearchTools(JObject arguments)
-        {
-            var query = arguments?["query"]?.ToString();
-            if (string.IsNullOrWhiteSpace(query))
-                return MCPToolResult.Error("Query must not be empty.");
-
-            var keywords = query.ToLowerInvariant().Split(
-                new[] { ' ', ',', '_' }, StringSplitOptions.RemoveEmptyEntries);
-
-            var scored = new List<(ToolRegistration tool, int score)>();
-
-            foreach (var tool in _tools.Values)
-            {
-                var haystack = (tool.Name + " " + tool.Description).ToLowerInvariant();
-                var score = 0;
-                foreach (var kw in keywords)
-                    if (haystack.Contains(kw))
-                        score++;
-
-                if (score > 0)
-                    scored.Add((tool, score));
-            }
-
-            if (scored.Count == 0)
-            {
-                var hint = new JObject
-                {
-                    ["message"] = $"No tools matched '{query}'. Try broader keywords or a different category.",
-                    ["categories"] = new JArray(
-                        "Scene", "Prefabs", "Components", "Materials", "Assets",
-                        "Files", "Animation", "Events", "References", "Tags/Layers", "Project")
-                };
-                return MCPToolResult.Success(hint.ToString(Formatting.None));
-            }
-
-            var results = new JArray();
-            foreach (var (tool, _) in scored.OrderByDescending(s => s.score).Take(10))
-            {
-                results.Add(new JObject
-                {
-                    ["name"] = tool.Name,
-                    ["description"] = tool.Description,
-                    ["inputSchema"] = tool.GetInputSchema()
-                });
-            }
-
-            return MCPToolResult.Success(results.ToString(Formatting.None));
-        }
-
-        MCPToolResult HandleCallUnityTool(JObject arguments)
-        {
-            var toolName = arguments?["tool"]?.ToString();
-            if (string.IsNullOrWhiteSpace(toolName))
-                return MCPToolResult.Error("Missing required parameter: 'tool'.");
-
-            if (!_tools.ContainsKey(toolName))
-                return MCPToolResult.Error(
-                    $"Unknown tool: '{toolName}'. Use search_unity_tools to find available tools.");
-
-            var inputToken = arguments["input"];
-            JObject input;
-
-            if (inputToken == null || inputToken.Type == JTokenType.Null)
-            {
-                input = new JObject();
-            }
-            else if (inputToken.Type == JTokenType.Object)
-            {
-                input = (JObject)inputToken;
-            }
-            else
-            {
-                var inputStr = inputToken.ToString();
-                try
-                {
-                    input = JObject.Parse(inputStr);
-                }
-                catch (JsonException)
-                {
-                    return MCPToolResult.Error(
-                        $"Invalid JSON in 'input' parameter. Expected a JSON object, got: {inputStr.Substring(0, System.Math.Min(inputStr.Length, 100))}");
-                }
-            }
-
-            return CallTool(toolName, input);
         }
 
         object[] BindArguments(ToolRegistration tool, JObject arguments)

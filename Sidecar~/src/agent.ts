@@ -1,5 +1,5 @@
 // src/agent.ts
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "node:crypto";
 import { SessionTrust } from "./permissions.js";
 import { discoverPlugins } from "./plugins.js";
@@ -19,6 +19,11 @@ export interface QueryLike extends AsyncIterable<Record<string, unknown>> {
     filesChanged?: string[];
     insertions?: number;
     deletions?: number;
+  }>;
+  setMcpServers?: (servers: Record<string, unknown>) => Promise<{
+    added: string[];
+    removed: string[];
+    errors: Record<string, string>;
   }>;
 }
 
@@ -86,6 +91,7 @@ export class AgentRunner {
   private _queryActive: boolean = false;
   private _autoAllowMCPTools: boolean = false;
   private _activeQuery: QueryLike | null = null;
+  private _unityToolsEnabled: boolean = false;
   private _lastUserMessageId: string | null = null;
   private _pendingToolBlocks: Map<string, { id: string; name: string; inputJson: string }> = new Map();
   private _toolUseToTask: Map<string, string> = new Map();
@@ -124,6 +130,7 @@ export class AgentRunner {
     this._lastUserMessageId = null;
     this._pendingToolBlocks.clear();
     this._toolUseToTask.clear();
+    this._unityToolsEnabled = false;
     this._autoAllowMCPTools = request.autoAllowMCPTools ?? false;
 
     this._queryActive = true;
@@ -141,6 +148,57 @@ export class AgentRunner {
       const plugins = discoverPlugins(request.projectDir);
 
       const queryFn = (this._options.queryFn ?? query) as QueryFn;
+
+      const metaServer = createSdkMcpServer({
+        name: "uniclaude-meta",
+        tools: [
+          tool("enable_unity_tools",
+            [
+              "Enable Unity editor tools for direct manipulation of the Unity project.",
+              "Call this ONLY when you need to perform an action in the Unity editor:",
+              "- Create/modify/delete GameObjects, scenes, or prefabs",
+              "- Add/remove/configure components and their properties",
+              "- Create/edit assets, materials, or animations",
+              "- Read/write/delete project files on disk",
+              "- Run tests or read console output",
+              "",
+              "Do NOT call this tool for:",
+              "- Explaining Unity concepts, APIs, or best practices",
+              "- Writing or reviewing C# code or scripts",
+              "- Answering questions about how Unity features work",
+              "- Designing systems, architectures, or game logic",
+              "- Any request that can be answered with knowledge alone",
+            ].join("\n"),
+            {},
+            async () => {
+              if (this._unityToolsEnabled) {
+                return { content: [{ type: "text" as const, text: "Unity tools are already enabled." }] };
+              }
+
+              if (!this._activeQuery?.setMcpServers) {
+                return { content: [{ type: "text" as const, text: "No active session." }], isError: true };
+              }
+
+              const result = await this._activeQuery.setMcpServers({
+                "uniclaude-unity": {
+                  type: "http" as const,
+                  url: `http://127.0.0.1:${this._options.mcpPort}/rpc`,
+                },
+              });
+
+              if (result.errors["uniclaude-unity"]) {
+                return {
+                  content: [{ type: "text" as const, text: `Failed to connect Unity MCP server: ${result.errors["uniclaude-unity"]}` }],
+                  isError: true,
+                };
+              }
+
+              this._unityToolsEnabled = true;
+              return { content: [{ type: "text" as const, text: "Unity editor tools enabled. You now have access to scene, asset, component, prefab, material, and file tools." }] };
+            },
+          ),
+        ],
+      });
 
       const prompt = request.message ?? "";
       const contentBlocks = buildContentBlocks(prompt, request.attachments);
@@ -186,10 +244,7 @@ export class AgentRunner {
           plugins,
           settingSources: ["user", "project"],
           mcpServers: {
-            "uniclaude-unity": {
-              type: "http" as const,
-              url: `http://127.0.0.1:${this._options.mcpPort}/rpc`,
-            },
+            "uniclaude-meta": metaServer,
           },
           promptSuggestions: true,
           extraArgs,
@@ -282,7 +337,8 @@ export class AgentRunner {
     suggestions?: PermissionUpdate[]
   ): Promise<{ behavior: "allow"; updatedInput: Record<string, unknown>; updatedPermissions?: PermissionUpdate[] } | { behavior: "deny"; message: string; interrupt?: boolean }> {
     // Auto-allow UniClaude MCP tools when the setting is enabled
-    if (this._autoAllowMCPTools && tool.startsWith("mcp__uniclaude-unity__")) {
+    if (this._autoAllowMCPTools &&
+        (tool.startsWith("mcp__uniclaude-unity__") || tool.startsWith("mcp__uniclaude-meta__"))) {
       return { behavior: "allow", updatedInput: input };
     }
 
@@ -387,17 +443,13 @@ export class AgentRunner {
         for (const block of content) {
           // Emit tool activity for all tool use block types
           if (typeof block.type === "string" && block.type.endsWith("tool_use") && block.id && block.name) {
-            // Unwrap call_unity_tool to show the actual inner tool name
             const input = block.input ?? {};
-            const displayName = block.name === "call_unity_tool" && typeof input.tool === "string"
-              ? input.tool
-              : block.name;
 
             // Emit phase event (backwards compat)
             this._options.onEvent({
               type: "phase",
               phase: "tool_use",
-              tool: displayName,
+              tool: block.name,
             });
 
             // Derive parentTaskId from the linking map
@@ -408,7 +460,7 @@ export class AgentRunner {
             this._options.onEvent({
               type: "tool_activity",
               toolUseId: block.id,
-              toolName: displayName,
+              toolName: block.name,
               input,
               parentTaskId,
             });
@@ -528,27 +580,13 @@ export class AgentRunner {
           try { input = JSON.parse(pending.inputJson); } catch { /* use empty */ }
         }
 
-        // Unwrap call_unity_tool to show actual inner tool name
-        const displayName = pending.name === "call_unity_tool" && typeof input.tool === "string"
-          ? input.tool
-          : pending.name;
-
-        // Re-emit corrected phase now that we know the real tool name
-        if (displayName !== pending.name) {
-          this._options.onEvent({
-            type: "phase",
-            phase: "tool_use",
-            tool: displayName,
-          });
-        }
-
         const parentTaskId = parentToolUseId
           ? this._toolUseToTask.get(parentToolUseId)
           : undefined;
         this._options.onEvent({
           type: "tool_activity",
           toolUseId: pending.id,
-          toolName: displayName,
+          toolName: pending.name,
           input,
           parentTaskId,
         });

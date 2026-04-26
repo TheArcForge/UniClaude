@@ -57,6 +57,11 @@ namespace UniClaude.Editor
         // ── Reconnection ──
         const int MaxReconnectAttempts = 3;
         int _reconnectAttempt;
+        const int MaxReloadWatchdogRetries = 3;
+        const double ReloadWatchdogTimeoutSec = 10.0;
+        IVisualElementScheduledItem _reloadWatchdog;
+        double _lastSSEDataTime;
+        int _reloadWatchdogRetries;
 
         // ── Session State Keys ──
         const string SessionKey_IsGenerating = "UniClaude_IsGenerating";
@@ -664,6 +669,7 @@ namespace UniClaude.Editor
 
             // Reconnect SSE — Last-Event-ID will trigger replay of missed events
             _client.ConnectStream();
+            StartReloadWatchdog();
 
             _chatPanel.AddInfoBubble(new ChatMessage(MessageRole.Info, "Domain reloaded \u2014 reconnected to sidecar"));
 
@@ -671,6 +677,82 @@ namespace UniClaude.Editor
             SessionState.SetBool(SessionKey_IsGenerating, false);
             SessionState.SetString(SessionKey_LastEventId, "");
             SessionState.SetString(SessionKey_StreamingContent, "");
+        }
+
+        void StartReloadWatchdog()
+        {
+            _reloadWatchdogRetries = 0;
+            _lastSSEDataTime = EditorApplication.timeSinceStartup;
+            _client.OnDataReceived += OnWatchdogDataReceived;
+            _reloadWatchdog = rootVisualElement.schedule.Execute(CheckReloadWatchdog).Every(2000);
+        }
+
+        void OnWatchdogDataReceived()
+        {
+            _lastSSEDataTime = EditorApplication.timeSinceStartup;
+        }
+
+        void CheckReloadWatchdog()
+        {
+            if (!_isGenerating)
+            {
+                StopReloadWatchdog();
+                return;
+            }
+
+            var elapsed = EditorApplication.timeSinceStartup - _lastSSEDataTime;
+            if (elapsed < ReloadWatchdogTimeoutSec) return;
+
+            _reloadWatchdog?.Pause();
+            _ = HandleReloadWatchdogTimeout();
+        }
+
+        async Task HandleReloadWatchdogTimeout()
+        {
+            bool active;
+            try
+            {
+                active = await _client.IsQueryActive();
+            }
+            catch
+            {
+                active = false;
+            }
+
+            if (active && _reloadWatchdogRetries < MaxReloadWatchdogRetries)
+            {
+                _reloadWatchdogRetries++;
+                Debug.Log($"[UniClaude] Reload watchdog: SSE silent for {ReloadWatchdogTimeoutSec}s but query active. " +
+                          $"Reconnecting SSE (attempt {_reloadWatchdogRetries}/{MaxReloadWatchdogRetries})");
+                _client.ConnectStream();
+                _lastSSEDataTime = EditorApplication.timeSinceStartup;
+                _reloadWatchdog?.Resume();
+            }
+            else
+            {
+                if (!active)
+                {
+                    Debug.Log("[UniClaude] Reload watchdog: generation completed during domain reload.");
+                    _chatPanel.AddInfoBubble(new ChatMessage(MessageRole.Info,
+                        "Generation completed during domain reload."));
+                }
+                else
+                {
+                    Debug.LogWarning("[UniClaude] Reload watchdog: lost connection after multiple retries.");
+                    _chatPanel.AddSystemMessage(
+                        "Lost connection during domain reload after multiple retries.");
+                }
+                OnGenerationComplete();
+                StopReloadWatchdog();
+            }
+        }
+
+        void StopReloadWatchdog()
+        {
+            _reloadWatchdog?.Pause();
+            _reloadWatchdog = null;
+            if (_client != null)
+                _client.OnDataReceived -= OnWatchdogDataReceived;
         }
 
         async Task TryReconnect()
@@ -895,6 +977,7 @@ namespace UniClaude.Editor
 
         void OnGenerationComplete()
         {
+            StopReloadWatchdog();
             _isGenerating = false;
             _toolbarStatus.style.display = DisplayStyle.None;
             _chatPanel.OnGenerationComplete();
