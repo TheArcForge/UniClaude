@@ -10,6 +10,11 @@ export interface QueryLike extends AsyncIterable<Record<string, unknown>> {
         insertions?: number;
         deletions?: number;
     }>;
+    setMcpServers?: (servers: Record<string, unknown>) => Promise<{
+        added: string[];
+        removed: string[];
+        errors: Record<string, string>;
+    }>;
 }
 /** Type of the query function accepted by AgentRunner (injectable for testing). */
 export type QueryFn = (args: {
@@ -33,6 +38,7 @@ export declare class AgentRunner {
     private _queryActive;
     private _autoAllowMCPTools;
     private _activeQuery;
+    private _unityToolsEnabled;
     private _lastUserMessageId;
     private _pendingToolBlocks;
     private _toolUseToTask;

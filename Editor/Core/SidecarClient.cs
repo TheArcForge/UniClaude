@@ -90,6 +90,9 @@ namespace UniClaude.Editor
         public event Action<SidecarEvent> OnTaskEvent;
         public event Action<SidecarEvent> OnToolProgress;
 
+        /// <summary>Fires when any SSE data is received (including keep-alive heartbeats). Used by the domain reload watchdog.</summary>
+        public event Action OnDataReceived;
+
         string BaseUrl => $"http://127.0.0.1:{_port}";
 
         /// <summary>
@@ -254,6 +257,8 @@ namespace UniClaude.Editor
                     var chunk = new char[4096];
                     var read = await reader.ReadAsync(chunk, 0, chunk.Length);
                     if (read == 0) break;
+
+                    OnDataReceived?.Invoke();
 
                     buffer += new string(chunk, 0, read);
                     var events = SplitSSEBuffer(ref buffer, ref _lastEventId);

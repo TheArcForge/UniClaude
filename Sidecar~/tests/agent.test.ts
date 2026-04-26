@@ -45,7 +45,7 @@ describe("AgentRunner plugin passthrough", () => {
     const pluginDir = join(projectDir, ".claude", "plugins", "my-plugin");
     createPlugin(pluginDir);
 
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -65,7 +65,7 @@ describe("AgentRunner plugin passthrough", () => {
 
     assert.ok(capturedArgs !== null, "queryFn was not called");
 
-    const captured = capturedArgs as { prompt: string; options?: Record<string, unknown> };
+    const captured = capturedArgs as Parameters<QueryFn>[0];
     const opts = captured.options as Record<string, unknown>;
 
     // plugins must be an array
@@ -84,7 +84,7 @@ describe("AgentRunner plugin passthrough", () => {
   });
 
   it("passes empty plugins array when none installed", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -108,7 +108,7 @@ describe("AgentRunner plugin passthrough", () => {
 
     assert.ok(capturedArgs !== null, "queryFn was not called");
 
-    const captured = capturedArgs as { prompt: string; options?: Record<string, unknown> };
+    const captured = capturedArgs as Parameters<QueryFn>[0];
     const opts = captured.options as Record<string, unknown>;
 
     // plugins must be an empty array (no project plugins, and real homedir
@@ -123,7 +123,7 @@ describe("AgentRunner plugin passthrough", () => {
 
 describe("AgentRunner systemPrompt preset", () => {
   it("passes systemPrompt as preset object when provided", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -142,7 +142,7 @@ describe("AgentRunner systemPrompt preset", () => {
     });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.deepEqual(opts.systemPrompt, {
       type: "preset",
       preset: "claude_code",
@@ -152,7 +152,7 @@ describe("AgentRunner systemPrompt preset", () => {
   });
 
   it("passes preset without append when no systemPrompt provided", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -170,7 +170,7 @@ describe("AgentRunner systemPrompt preset", () => {
     });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.deepEqual(opts.systemPrompt, {
       type: "preset",
       preset: "claude_code",
@@ -181,7 +181,7 @@ describe("AgentRunner systemPrompt preset", () => {
 
 describe("AgentRunner plan mode", () => {
   it("passes permissionMode 'plan' when planMode is true", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -200,12 +200,12 @@ describe("AgentRunner plan mode", () => {
     });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.permissionMode, "plan");
   });
 
   it("does not set permissionMode when planMode is false", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -224,7 +224,7 @@ describe("AgentRunner plan mode", () => {
     });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.permissionMode, undefined);
   });
 
@@ -274,7 +274,7 @@ describe("AgentRunner plan mode", () => {
 
 describe("AgentRunner effort passthrough", () => {
   it("passes effort to SDK options", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -293,12 +293,12 @@ describe("AgentRunner effort passthrough", () => {
     });
 
     assert.ok(capturedArgs !== null, "queryFn was not called");
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.effort, "max");
   });
 
   it("omits effort from SDK options when not specified", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -316,14 +316,14 @@ describe("AgentRunner effort passthrough", () => {
     });
 
     assert.ok(capturedArgs !== null, "queryFn was not called");
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.effort, undefined);
   });
 });
 
 describe("AgentRunner file checkpointing", () => {
   it("passes enableFileCheckpointing: true to SDK options", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -339,7 +339,7 @@ describe("AgentRunner file checkpointing", () => {
     await runner.startQuery({ message: "hello" });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.enableFileCheckpointing, true);
   });
 });
@@ -466,7 +466,7 @@ describe("AgentRunner undo", () => {
 
 describe("AgentRunner prompt suggestions", () => {
   it("passes promptSuggestions: true to SDK options", async () => {
-    let capturedArgs: { prompt: string; options?: Record<string, unknown> } | null = null;
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
       capturedArgs = args;
@@ -482,7 +482,7 @@ describe("AgentRunner prompt suggestions", () => {
     await runner.startQuery({ message: "hello" });
 
     assert.ok(capturedArgs !== null);
-    const opts = (capturedArgs as { prompt: string; options?: Record<string, unknown> }).options as Record<string, unknown>;
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     assert.equal(opts.promptSuggestions, true);
   });
 
@@ -1027,5 +1027,108 @@ describe("AgentRunner tool_progress events", () => {
     assert.equal(toolProgressEvents[0].toolName, "Bash");
     assert.equal(toolProgressEvents[0].elapsedSeconds, 5.2);
     assert.equal(toolProgressEvents[0].parentTaskId, "task_x");
+  });
+});
+
+describe("AgentRunner lazy tool activation", () => {
+  it("passes uniclaude-meta SDK server in mcpServers", async () => {
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
+
+    const fakeQueryFn: QueryFn = (args) => {
+      capturedArgs = args;
+      return fakeConversation();
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: () => {},
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello" });
+
+    assert.ok(capturedArgs !== null, "queryFn was not called");
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
+    const mcpServers = opts.mcpServers as Record<string, unknown>;
+
+    assert.ok(mcpServers["uniclaude-meta"] !== undefined, "uniclaude-meta should be in mcpServers");
+    const meta = mcpServers["uniclaude-meta"] as Record<string, unknown>;
+    assert.equal(meta.type, "sdk", "uniclaude-meta should be an SDK server");
+    assert.equal(meta.name, "uniclaude-meta", "uniclaude-meta name should match");
+  });
+
+  it("does NOT include uniclaude-unity in initial mcpServers", async () => {
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
+
+    const fakeQueryFn: QueryFn = (args) => {
+      capturedArgs = args;
+      return fakeConversation();
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: () => {},
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello" });
+
+    assert.ok(capturedArgs !== null, "queryFn was not called");
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
+    const mcpServers = opts.mcpServers as Record<string, unknown>;
+
+    assert.equal(mcpServers["uniclaude-unity"], undefined, "uniclaude-unity should NOT be in initial mcpServers");
+  });
+
+  it("auto-allows uniclaude-meta MCP tools when autoAllowMCPTools is true", async () => {
+    const events: SSEEvent[] = [];
+
+    async function* toolUseConversation(): AsyncIterable<Record<string, unknown>> {
+      yield {
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "test-tool-1",
+              name: "mcp__uniclaude-meta__enable_unity_tools",
+              input: {},
+            },
+          ],
+        },
+      };
+      yield {
+        type: "result",
+        result: "done",
+        session_id: "test-session",
+        usage: { input_tokens: 1, output_tokens: 1 },
+        total_cost_usd: 0,
+      };
+    }
+
+    const fakeQueryFn: QueryFn = (args) => {
+      const conv = toolUseConversation();
+      const opts = args.options as Record<string, unknown>;
+      const canUseTool = opts.canUseTool as (tool: string, input: Record<string, unknown>, options: Record<string, unknown>) => Promise<unknown>;
+
+      // Intercept: call canUseTool and check the result
+      canUseTool("mcp__uniclaude-meta__enable_unity_tools", {}, {}).then((result) => {
+        const r = result as { behavior: string };
+        events.push({ type: "info", message: r.behavior } as unknown as SSEEvent);
+      });
+
+      return conv;
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: (e) => events.push(e),
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello", autoAllowMCPTools: true });
+
+    const allowEvent = events.find((e) => e.type === ("info" as SSEEvent["type"]) && (e as unknown as { message: string }).message === "allow");
+    assert.ok(allowEvent !== undefined, "mcp__uniclaude-meta__ tool should be auto-allowed");
   });
 });

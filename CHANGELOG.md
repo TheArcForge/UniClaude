@@ -5,6 +5,18 @@ All notable changes to UniClaude will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/). Each released version carries a codename.
 
 
+## [Unreleased]
+
+### Added
+
+- **Lazy tool activation.** The sidecar now starts each conversation with a single `enable_unity_tools` meta-tool instead of all 69 Unity MCP tools. The model calls it only when it needs editor access, dynamically loading the full toolset mid-turn via the SDK's `setMcpServers()`. Generic conversations (explain, review, design) save ~14k tokens per API call. Validated at 98% accuracy (39/40) across true-positive and true-negative test cases.
+- **Direct MCP tool dispatch.** The MCP server now exposes all discovered tools directly via `tools/list` instead of routing through `search_unity_tools` / `call_unity_tool` meta-tools. This is a prerequisite for lazy activation (the SDK's `setMcpServers()` expects real tools in `tools/list`) and reduces per-tool-call overhead by one round trip.
+- **`scene_create_primitive` tool.** Creates primitive GameObjects (Cube, Sphere, Plane, Capsule, Cylinder, Quad) with optional position, rotation, scale, and parenting.
+
+### Fixed
+
+- **Domain reload watchdog.** After Unity's domain reload, the SSE stream could silently die while the sidecar query was still active. A watchdog now monitors SSE data flow and reconnects automatically if the stream goes silent for 10 seconds (up to 3 retries). If the query completed during reload, the UI transitions cleanly to idle.
+
 ## [0.2.0] "Ninja" - 2026-04-22
 
 ### Added

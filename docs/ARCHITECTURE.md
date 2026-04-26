@@ -127,7 +127,7 @@ Unity Editor (C#)                    Node.js Sidecar
 
 ### MCP (Model Context Protocol)
 
-The MCP server exposes Unity editor actions as tools that Claude can call. The flow:
+The MCP server exposes Unity editor actions as tools that Claude can call. All discovered tools are listed directly in `tools/list` and dispatched directly by name in `tools/call`. The flow:
 
 1. Claude decides to call a tool (e.g., `scene_get_hierarchy`)
 2. The Agent SDK sends a JSON-RPC request to the MCP server
@@ -136,6 +136,18 @@ The MCP server exposes Unity editor actions as tools that Claude can call. The f
 5. The result is returned to Claude through the same JSON-RPC channel
 
 Tools are discovered via reflection at startup — any static method with `[MCPTool]` is automatically registered.
+
+### Lazy Tool Activation
+
+To avoid paying ~14k tokens of tool schema overhead on conversations that don't need editor tools, the sidecar uses lazy activation:
+
+1. At conversation start, only a single `enable_unity_tools` meta-tool is registered via an in-process SDK MCP server (`uniclaude-meta`)
+2. For generic questions (explain, review, design), the model answers without calling it — cost: ~200 tokens
+3. When the model needs editor access, it calls `enable_unity_tools`
+4. The handler calls `Query.setMcpServers()` to dynamically connect the Unity HTTP MCP server mid-turn
+5. The SDK fetches `tools/list` (69 tools) and the model continues the same turn with full toolset
+
+Once activated, tools stay available for the rest of the conversation. New conversations start lightweight again.
 
 ### Project Awareness
 
@@ -185,10 +197,10 @@ and replays any with id > Last-Event-ID before resuming the live stream.
 ### MCP Tool Call Lifecycle
 
 ```
-Claude requests tool call
+Claude requests tool call (e.g., scene_get_hierarchy)
     │
     ▼
-Agent SDK → JSON-RPC request → HttpTransport
+Agent SDK → JSON-RPC tools/call → HttpTransport
     │
     ▼
 MCPServer.EnqueueAndWait() → main thread queue
@@ -197,8 +209,8 @@ MCPServer.EnqueueAndWait() → main thread queue
 ProcessMainThreadQueue() on EditorApplication.update
     │
     ▼
-MCPDispatcher.Execute(toolName, args)
-    │  Reflection-based lookup
+MCPDispatcher.HandleToolCall(toolName, args)
+    │  Direct dispatch to registered tool
     ▼
 [MCPTool] static method executes
     │
@@ -240,7 +252,7 @@ Agent SDK → canUseTool callback (agent.ts)
 
 ### Backend — SessionTrust (permissions.ts)
 
-`SessionTrust` is a `Set<string>` of trusted tool names, scoped to the current conversation. It resets when a new conversation starts (no `sessionId`). The `autoAllowMCPTools` setting in `UniClaudeSettings` bypasses the permission prompt for all tools on the `uniclaude-unity` MCP server — but not for external plugins.
+`SessionTrust` is a `Set<string>` of trusted tool names, scoped to the current conversation. It resets when a new conversation starts (no `sessionId`). The `autoAllowMCPTools` setting in `UniClaudeSettings` bypasses the permission prompt for all tools on both the `uniclaude-unity` and `uniclaude-meta` MCP servers — but not for external plugins.
 
 ### Frontend — PermissionPromptElement
 
