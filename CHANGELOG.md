@@ -5,7 +5,7 @@ All notable changes to UniClaude will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/). Each released version carries a codename.
 
 
-## [Unreleased]
+## [0.3.0] "Sharpening Tools" - 2026-05-01
 
 ### Added
 
