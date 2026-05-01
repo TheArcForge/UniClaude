@@ -82,6 +82,7 @@ export interface ChatRequest {
     autoAllowMCPTools?: boolean;
     projectDir?: string;
     planMode?: boolean;
+    mcpPort?: number;
     attachments?: ChatAttachment[];
 }
 export interface ApproveRequest {

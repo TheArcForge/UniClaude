@@ -141,6 +141,11 @@ namespace UniClaude.Editor.MCP
                     await HandleRPC(context);
                 else if (context.Request.HttpMethod == "GET" && path == "/sse")
                     await HandleSSE(context, ct);
+                else if (context.Request.HttpMethod == "GET" && path == "/rpc")
+                {
+                    context.Response.StatusCode = 405;
+                    context.Response.Close();
+                }
                 else
                 {
                     context.Response.StatusCode = 404;

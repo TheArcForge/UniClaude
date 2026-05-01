@@ -32,7 +32,7 @@ com.arcforge.uniclaude/
 │   │   ├── UniClaudeAssetPostprocessor.cs # Asset change detection for incremental indexing
 │   │   └── UniClaudeSettings.cs         # Persistent user settings
 │   ├── MCP/                             # Model Context Protocol server
-│   │   ├── Tools/                       # Tool implementations (14 categories, 60+ tools)
+│   │   ├── Tools/                       # Tool implementations (16 categories, 75 tools)
 │   │   ├── DomainReload/                # Domain reload strategies (auto/manual)
 │   │   ├── Transport/                   # HTTP transport layer
 │   │   ├── MCPServer.cs                 # Server lifecycle and main-thread dispatch
@@ -137,17 +137,9 @@ The MCP server exposes Unity editor actions as tools that Claude can call. All d
 
 Tools are discovered via reflection at startup — any static method with `[MCPTool]` is automatically registered.
 
-### Lazy Tool Activation
+### Tool Search (Automatic Token Savings)
 
-To avoid paying ~14k tokens of tool schema overhead on conversations that don't need editor tools, the sidecar uses lazy activation:
-
-1. At conversation start, only a single `enable_unity_tools` meta-tool is registered via an in-process SDK MCP server (`uniclaude-meta`)
-2. For generic questions (explain, review, design), the model answers without calling it — cost: ~200 tokens
-3. When the model needs editor access, it calls `enable_unity_tools`
-4. The handler calls `Query.setMcpServers()` to dynamically connect the Unity HTTP MCP server mid-turn
-5. The SDK fetches `tools/list` (69 tools) and the model continues the same turn with full toolset
-
-Once activated, tools stay available for the rest of the conversation. New conversations start lightweight again.
+The `uniclaude-unity` MCP server is connected eagerly at query start via the SDK's `mcpServers` config. The Agent SDK's built-in tool search (enabled by default) automatically defers Unity tool definitions from context. When the model needs a Unity tool, it discovers it via the built-in `ToolSearch` mechanism. For conversations that don't use Unity tools (explain, review, design), the deferred definitions stay out of context, saving tokens automatically.
 
 ### Project Awareness
 
@@ -173,7 +165,7 @@ User types message
 InputController → UniClaudeWindow.StartChat()
     │
     ▼
-SidecarClient.StartChat(message, model, effort, attachments)
+SidecarClient.StartChat(message, model, effort, mcpPort, attachments)
     │  HTTP POST /chat
     ▼
 Node.js sidecar → Anthropic Agent SDK → Claude API
@@ -192,6 +184,11 @@ SidecarClient dispatches events (each event carries an incrementing id):
 On reconnect (e.g., after domain reload), SidecarClient sends Last-Event-ID
 to replay missed events. The sidecar buffers all events for the current query
 and replays any with id > Last-Event-ID before resuming the live stream.
+
+A domain reload watchdog monitors the SSE stream. If no data arrives for 10
+seconds while a query is active, the watchdog reconnects the SSE stream
+automatically (up to 3 retries). If the query completed during reload, the
+UI transitions cleanly to idle instead of hanging.
 ```
 
 ### MCP Tool Call Lifecycle
@@ -252,7 +249,7 @@ Agent SDK → canUseTool callback (agent.ts)
 
 ### Backend — SessionTrust (permissions.ts)
 
-`SessionTrust` is a `Set<string>` of trusted tool names, scoped to the current conversation. It resets when a new conversation starts (no `sessionId`). The `autoAllowMCPTools` setting in `UniClaudeSettings` bypasses the permission prompt for all tools on both the `uniclaude-unity` and `uniclaude-meta` MCP servers — but not for external plugins.
+`SessionTrust` is a `Set<string>` of trusted tool names, scoped to the current conversation. It resets when a new conversation starts (no `sessionId`). The `autoAllowMCPTools` setting in `UniClaudeSettings` bypasses the permission prompt for all tools on the `uniclaude-unity` MCP server — but not for external plugins.
 
 ### Frontend — PermissionPromptElement
 

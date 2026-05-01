@@ -1153,6 +1153,7 @@ namespace UniClaude.Editor
                     systemPrompt: systemPrompt,
                     autoAllowMCPTools: _settings.AutoAllowMCPTools,
                     planMode: _planMode,
+                    mcpPort: _mcpServer?.Port ?? 0,
                     attachments: sidecarAttachments);
             }
             catch (Exception ex)

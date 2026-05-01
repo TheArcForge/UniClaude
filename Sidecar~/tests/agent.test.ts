@@ -1030,8 +1030,8 @@ describe("AgentRunner tool_progress events", () => {
   });
 });
 
-describe("AgentRunner lazy tool activation", () => {
-  it("passes uniclaude-meta SDK server in mcpServers", async () => {
+describe("AgentRunner eager MCP connection", () => {
+  it("passes uniclaude-unity HTTP server in mcpServers", async () => {
     let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
@@ -1051,13 +1051,13 @@ describe("AgentRunner lazy tool activation", () => {
     const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     const mcpServers = opts.mcpServers as Record<string, unknown>;
 
-    assert.ok(mcpServers["uniclaude-meta"] !== undefined, "uniclaude-meta should be in mcpServers");
-    const meta = mcpServers["uniclaude-meta"] as Record<string, unknown>;
-    assert.equal(meta.type, "sdk", "uniclaude-meta should be an SDK server");
-    assert.equal(meta.name, "uniclaude-meta", "uniclaude-meta name should match");
+    assert.ok(mcpServers["uniclaude-unity"] !== undefined, "uniclaude-unity should be in mcpServers");
+    const unity = mcpServers["uniclaude-unity"] as Record<string, unknown>;
+    assert.equal(unity.type, "http", "uniclaude-unity should be an HTTP server");
+    assert.equal(unity.url, "http://127.0.0.1:9999/rpc", "URL should use mcpPort");
   });
 
-  it("does NOT include uniclaude-unity in initial mcpServers", async () => {
+  it("does NOT include uniclaude-meta in mcpServers", async () => {
     let capturedArgs: Parameters<QueryFn>[0] | null = null;
 
     const fakeQueryFn: QueryFn = (args) => {
@@ -1077,42 +1077,18 @@ describe("AgentRunner lazy tool activation", () => {
     const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
     const mcpServers = opts.mcpServers as Record<string, unknown>;
 
-    assert.equal(mcpServers["uniclaude-unity"], undefined, "uniclaude-unity should NOT be in initial mcpServers");
+    assert.equal(mcpServers["uniclaude-meta"], undefined, "uniclaude-meta should NOT be in mcpServers");
   });
 
-  it("auto-allows uniclaude-meta MCP tools when autoAllowMCPTools is true", async () => {
+  it("auto-allows uniclaude-unity MCP tools when autoAllowMCPTools is true", async () => {
     const events: SSEEvent[] = [];
 
-    async function* toolUseConversation(): AsyncIterable<Record<string, unknown>> {
-      yield {
-        type: "assistant",
-        message: {
-          content: [
-            {
-              type: "tool_use",
-              id: "test-tool-1",
-              name: "mcp__uniclaude-meta__enable_unity_tools",
-              input: {},
-            },
-          ],
-        },
-      };
-      yield {
-        type: "result",
-        result: "done",
-        session_id: "test-session",
-        usage: { input_tokens: 1, output_tokens: 1 },
-        total_cost_usd: 0,
-      };
-    }
-
     const fakeQueryFn: QueryFn = (args) => {
-      const conv = toolUseConversation();
+      const conv = fakeConversation();
       const opts = args.options as Record<string, unknown>;
       const canUseTool = opts.canUseTool as (tool: string, input: Record<string, unknown>, options: Record<string, unknown>) => Promise<unknown>;
 
-      // Intercept: call canUseTool and check the result
-      canUseTool("mcp__uniclaude-meta__enable_unity_tools", {}, {}).then((result) => {
+      canUseTool("mcp__uniclaude-unity__scene_get_hierarchy", {}, {}).then((result) => {
         const r = result as { behavior: string };
         events.push({ type: "info", message: r.behavior } as unknown as SSEEvent);
       });
@@ -1129,6 +1105,29 @@ describe("AgentRunner lazy tool activation", () => {
     await runner.startQuery({ message: "hello", autoAllowMCPTools: true });
 
     const allowEvent = events.find((e) => e.type === ("info" as SSEEvent["type"]) && (e as unknown as { message: string }).message === "allow");
-    assert.ok(allowEvent !== undefined, "mcp__uniclaude-meta__ tool should be auto-allowed");
+    assert.ok(allowEvent !== undefined, "mcp__uniclaude-unity__ tool should be auto-allowed");
+  });
+
+  it("uses per-request mcpPort override", async () => {
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
+
+    const fakeQueryFn: QueryFn = (args) => {
+      capturedArgs = args;
+      return fakeConversation();
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: () => {},
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello", mcpPort: 7777 });
+
+    assert.ok(capturedArgs !== null, "queryFn was not called");
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
+    const mcpServers = opts.mcpServers as Record<string, unknown>;
+    const unity = mcpServers["uniclaude-unity"] as Record<string, unknown>;
+    assert.equal(unity.url, "http://127.0.0.1:7777/rpc", "URL should use per-request mcpPort");
   });
 });

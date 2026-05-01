@@ -46,7 +46,7 @@ class AgentRunner {
     _queryActive = false;
     _autoAllowMCPTools = false;
     _activeQuery = null;
-    _unityToolsEnabled = false;
+    _mcpPort = 0;
     _lastUserMessageId = null;
     _pendingToolBlocks = new Map();
     _toolUseToTask = new Map();
@@ -77,8 +77,8 @@ class AgentRunner {
         this._lastUserMessageId = null;
         this._pendingToolBlocks.clear();
         this._toolUseToTask.clear();
-        this._unityToolsEnabled = false;
         this._autoAllowMCPTools = request.autoAllowMCPTools ?? false;
+        this._mcpPort = request.mcpPort ?? this._options.mcpPort;
         this._queryActive = true;
         this._abortController = new AbortController();
         // When using AsyncIterable<SDKUserMessage> as the prompt, the generator must
@@ -90,48 +90,6 @@ class AgentRunner {
             const extraArgs = {};
             const plugins = (0, plugins_js_1.discoverPlugins)(request.projectDir);
             const queryFn = (this._options.queryFn ?? claude_agent_sdk_1.query);
-            const metaServer = (0, claude_agent_sdk_1.createSdkMcpServer)({
-                name: "uniclaude-meta",
-                tools: [
-                    (0, claude_agent_sdk_1.tool)("enable_unity_tools", [
-                        "Enable Unity editor tools for direct manipulation of the Unity project.",
-                        "Call this ONLY when you need to perform an action in the Unity editor:",
-                        "- Create/modify/delete GameObjects, scenes, or prefabs",
-                        "- Add/remove/configure components and their properties",
-                        "- Create/edit assets, materials, or animations",
-                        "- Read/write/delete project files on disk",
-                        "- Run tests or read console output",
-                        "",
-                        "Do NOT call this tool for:",
-                        "- Explaining Unity concepts, APIs, or best practices",
-                        "- Writing or reviewing C# code or scripts",
-                        "- Answering questions about how Unity features work",
-                        "- Designing systems, architectures, or game logic",
-                        "- Any request that can be answered with knowledge alone",
-                    ].join("\n"), {}, async () => {
-                        if (this._unityToolsEnabled) {
-                            return { content: [{ type: "text", text: "Unity tools are already enabled." }] };
-                        }
-                        if (!this._activeQuery?.setMcpServers) {
-                            return { content: [{ type: "text", text: "No active session." }], isError: true };
-                        }
-                        const result = await this._activeQuery.setMcpServers({
-                            "uniclaude-unity": {
-                                type: "http",
-                                url: `http://127.0.0.1:${this._options.mcpPort}/rpc`,
-                            },
-                        });
-                        if (result.errors["uniclaude-unity"]) {
-                            return {
-                                content: [{ type: "text", text: `Failed to connect Unity MCP server: ${result.errors["uniclaude-unity"]}` }],
-                                isError: true,
-                            };
-                        }
-                        this._unityToolsEnabled = true;
-                        return { content: [{ type: "text", text: "Unity editor tools enabled. You now have access to scene, asset, component, prefab, material, and file tools." }] };
-                    }),
-                ],
-            });
             const prompt = request.message ?? "";
             const contentBlocks = buildContentBlocks(prompt, request.attachments);
             let promptArg;
@@ -174,7 +132,10 @@ class AgentRunner {
                     plugins,
                     settingSources: ["user", "project"],
                     mcpServers: {
-                        "uniclaude-meta": metaServer,
+                        "uniclaude-unity": {
+                            type: "http",
+                            url: `http://127.0.0.1:${this._mcpPort}/rpc`,
+                        },
                     },
                     promptSuggestions: true,
                     extraArgs,
@@ -259,7 +220,7 @@ class AgentRunner {
     async _handleCanUseTool(tool, input, suggestions) {
         // Auto-allow UniClaude MCP tools when the setting is enabled
         if (this._autoAllowMCPTools &&
-            (tool.startsWith("mcp__uniclaude-unity__") || tool.startsWith("mcp__uniclaude-meta__"))) {
+            tool.startsWith("mcp__uniclaude-unity__")) {
             return { behavior: "allow", updatedInput: input };
         }
         // Auto-allow internal/non-destructive tools that don't need user permission

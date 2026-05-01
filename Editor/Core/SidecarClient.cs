@@ -127,7 +127,7 @@ namespace UniClaude.Editor
         /// <param name="attachments">Optional list of file attachments to include with the message.</param>
         public async Task StartChat(string message, string model, string effort,
             string sessionId, string systemPrompt, bool autoAllowMCPTools = false,
-            bool planMode = false, List<SidecarAttachment> attachments = null)
+            bool planMode = false, int mcpPort = 0, List<SidecarAttachment> attachments = null)
         {
             var body = new JObject
             {
@@ -138,6 +138,7 @@ namespace UniClaude.Editor
                 ["systemPrompt"] = systemPrompt,
                 ["autoAllowMCPTools"] = autoAllowMCPTools,
                 ["planMode"] = planMode,
+                ["mcpPort"] = mcpPort,
                 ["projectDir"] = System.IO.Path.GetDirectoryName(Application.dataPath),
             };
 

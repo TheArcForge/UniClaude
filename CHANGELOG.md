@@ -9,9 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
-- **Lazy tool activation.** The sidecar now starts each conversation with a single `enable_unity_tools` meta-tool instead of all 69 Unity MCP tools. The model calls it only when it needs editor access, dynamically loading the full toolset mid-turn via the SDK's `setMcpServers()`. Generic conversations (explain, review, design) save ~14k tokens per API call. Validated at 98% accuracy (39/40) across true-positive and true-negative test cases.
-- **Direct MCP tool dispatch.** The MCP server now exposes all discovered tools directly via `tools/list` instead of routing through `search_unity_tools` / `call_unity_tool` meta-tools. This is a prerequisite for lazy activation (the SDK's `setMcpServers()` expects real tools in `tools/list`) and reduces per-tool-call overhead by one round trip.
+- **Eager MCP connection with tool search.** The Unity MCP server connects at query start via the SDK's `mcpServers` config. The Agent SDK's built-in tool search automatically defers tool definitions from context, saving token overhead on conversations that don't use Unity tools. No meta-server or gateway pattern involved.
+- **Direct MCP tool dispatch.** The MCP server now exposes all discovered tools directly via `tools/list` instead of routing through `search_unity_tools` / `call_unity_tool` meta-tools, reducing per-tool-call overhead by one round trip.
 - **`scene_create_primitive` tool.** Creates primitive GameObjects (Cube, Sphere, Plane, Capsule, Cylinder, Quad) with optional position, rotation, scale, and parenting.
+- **Asset import tools.** Three new MCP tools for reading and modifying asset import settings: `asset_get_import_settings` (generic read via SerializedObject), `asset_set_import_settings` (generic write + reimport), and `asset_set_clip_import_settings` (specialized for FBX animation clip loop time, loop pose, and frame range).
+- **AnimatorController authoring tools.** Three new MCP tools for full state machine control: `animation_create_controller` (batch create with parameters, states, and transitions in one call), `animation_edit_controller` (batch add/remove operations on existing controllers), and `animation_get_controller` (inspect parameters, states, transitions, layers).
 
 ### Fixed
 
