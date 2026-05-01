@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -102,6 +103,142 @@ namespace UniClaude.Editor.Tests.MCP
         {
             var result = AnimationTools.AssignClip(_controllerPath, "Idle", "Assets/NonExistent.anim");
             Assert.IsTrue(result.IsError);
+        }
+
+        [Test]
+        public void GetController_ReturnsParametersAndStates()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(_controllerPath);
+            controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            AssetDatabase.SaveAssets();
+
+            var result = AnimationTools.GetController(_controllerPath);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+            StringAssert.Contains("Speed", result.Text);
+            StringAssert.Contains("Idle", result.Text);
+            StringAssert.Contains("Float", result.Text);
+        }
+
+        [Test]
+        public void GetController_NotFound_ReturnsError()
+        {
+            var result = AnimationTools.GetController("Assets/NonExistent.controller");
+            Assert.IsTrue(result.IsError);
+            StringAssert.Contains("not found", result.Text);
+        }
+
+        [Test]
+        public void ResolveClipFromPath_AnimClip_ReturnsClip()
+        {
+            var clip = AnimationTools.ResolveClipFromPath(_clipPath, out var error);
+            Assert.IsNotNull(clip, $"Expected clip but got error: {error}");
+            Assert.IsNull(error);
+        }
+
+        [Test]
+        public void ResolveClipFromPath_NotFound_ReturnsNull()
+        {
+            var clip = AnimationTools.ResolveClipFromPath("Assets/NonExistent.anim", out var error);
+            Assert.IsNull(clip);
+            Assert.IsNotNull(error);
+        }
+
+        [Test]
+        public void CreateController_EmptyController_CreatesFile()
+        {
+            var path = $"{TestFolder}/NewController.controller";
+            var result = AnimationTools.CreateController(path, null, null, null);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(path);
+            Assert.IsNotNull(controller);
+        }
+
+        [Test]
+        public void CreateController_WithParametersAndStates_ConfiguresAll()
+        {
+            var path = $"{TestFolder}/FullController.controller";
+            var parameters = "[{\"name\": \"Speed\", \"type\": \"Float\", \"default\": 0.0}]";
+            var states = $"[{{\"name\": \"Idle\", \"clip\": \"{_clipPath}\", \"isDefault\": true}}, {{\"name\": \"Walk\"}}]";
+            var transitions = "[{\"from\": \"AnyState\", \"to\": \"Idle\", \"hasExitTime\": false, \"duration\": 0.1, \"conditions\": [{\"parameter\": \"Speed\", \"mode\": \"Less\", \"threshold\": 0.1}]}]";
+
+            var result = AnimationTools.CreateController(path, parameters, states, transitions);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(path);
+            Assert.AreEqual(1, controller.parameters.Length);
+            Assert.AreEqual("Speed", controller.parameters[0].name);
+
+            var sm = controller.layers[0].stateMachine;
+            Assert.AreEqual(2, sm.states.Length);
+            Assert.AreEqual(1, sm.anyStateTransitions.Length);
+        }
+
+        [Test]
+        public void CreateController_AlreadyExists_ReturnsError()
+        {
+            var result = AnimationTools.CreateController(_controllerPath, null, null, null);
+            Assert.IsTrue(result.IsError);
+            StringAssert.Contains("already exists", result.Text);
+        }
+
+        [Test]
+        public void CreateController_InvalidPath_ReturnsError()
+        {
+            var result = AnimationTools.CreateController($"{TestFolder}/Bad.txt", null, null, null);
+            Assert.IsTrue(result.IsError);
+            StringAssert.Contains(".controller", result.Text);
+        }
+
+        [Test]
+        public void EditController_AddState_AddsToExisting()
+        {
+            var states = "[{\"name\": \"Walking\"}]";
+            var result = AnimationTools.EditController(_controllerPath, null, null, states, null, null, null);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(_controllerPath);
+            var stateNames = controller.layers[0].stateMachine.states.Select(s => s.state.name).ToArray();
+            CollectionAssert.Contains(stateNames, "Walking");
+            CollectionAssert.Contains(stateNames, "Idle");
+        }
+
+        [Test]
+        public void EditController_RemoveState_RemovesFromExisting()
+        {
+            var result = AnimationTools.EditController(_controllerPath, null, null, null, "[\"Idle\"]", null, null);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(_controllerPath);
+            var stateNames = controller.layers[0].stateMachine.states.Select(s => s.state.name).ToArray();
+            CollectionAssert.DoesNotContain(stateNames, "Idle");
+        }
+
+        [Test]
+        public void EditController_AddParameter_AddsToExisting()
+        {
+            var parameters = "[{\"name\": \"Health\", \"type\": \"Float\", \"default\": 100.0}]";
+            var result = AnimationTools.EditController(_controllerPath, parameters, null, null, null, null, null);
+            Assert.IsFalse(result.IsError, $"Expected success: {result.Text}");
+
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(_controllerPath);
+            Assert.AreEqual(1, controller.parameters.Length);
+            Assert.AreEqual("Health", controller.parameters[0].name);
+        }
+
+        [Test]
+        public void EditController_NotFound_ReturnsError()
+        {
+            var result = AnimationTools.EditController("Assets/NonExistent.controller", null, null, "[{\"name\": \"X\"}]", null, null, null);
+            Assert.IsTrue(result.IsError);
+        }
+
+        [Test]
+        public void EditController_NoOps_ReturnsError()
+        {
+            var result = AnimationTools.EditController(_controllerPath, null, null, null, null, null, null);
+            Assert.IsTrue(result.IsError);
+            StringAssert.Contains("at least one", result.Text.ToLower());
         }
     }
 }

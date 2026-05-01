@@ -32,7 +32,7 @@ com.arcforge.uniclaude/
 │   │   ├── UniClaudeAssetPostprocessor.cs # Asset change detection for incremental indexing
 │   │   └── UniClaudeSettings.cs         # Persistent user settings
 │   ├── MCP/                             # Model Context Protocol server
-│   │   ├── Tools/                       # Tool implementations (14 categories, 60+ tools)
+│   │   ├── Tools/                       # Tool implementations (16 categories, 75 tools)
 │   │   ├── DomainReload/                # Domain reload strategies (auto/manual)
 │   │   ├── Transport/                   # HTTP transport layer
 │   │   ├── MCPServer.cs                 # Server lifecycle and main-thread dispatch
@@ -127,7 +127,7 @@ Unity Editor (C#)                    Node.js Sidecar
 
 ### MCP (Model Context Protocol)
 
-The MCP server exposes Unity editor actions as tools that Claude can call. The flow:
+The MCP server exposes Unity editor actions as tools that Claude can call. All discovered tools are listed directly in `tools/list` and dispatched directly by name in `tools/call`. The flow:
 
 1. Claude decides to call a tool (e.g., `scene_get_hierarchy`)
 2. The Agent SDK sends a JSON-RPC request to the MCP server
@@ -136,6 +136,10 @@ The MCP server exposes Unity editor actions as tools that Claude can call. The f
 5. The result is returned to Claude through the same JSON-RPC channel
 
 Tools are discovered via reflection at startup — any static method with `[MCPTool]` is automatically registered.
+
+### Tool Search (Automatic Token Savings)
+
+The `uniclaude-unity` MCP server is connected eagerly at query start via the SDK's `mcpServers` config. The Agent SDK's built-in tool search (enabled by default) automatically defers Unity tool definitions from context. When the model needs a Unity tool, it discovers it via the built-in `ToolSearch` mechanism. For conversations that don't use Unity tools (explain, review, design), the deferred definitions stay out of context, saving tokens automatically.
 
 ### Project Awareness
 
@@ -161,7 +165,7 @@ User types message
 InputController → UniClaudeWindow.StartChat()
     │
     ▼
-SidecarClient.StartChat(message, model, effort, attachments)
+SidecarClient.StartChat(message, model, effort, mcpPort, attachments)
     │  HTTP POST /chat
     ▼
 Node.js sidecar → Anthropic Agent SDK → Claude API
@@ -180,15 +184,20 @@ SidecarClient dispatches events (each event carries an incrementing id):
 On reconnect (e.g., after domain reload), SidecarClient sends Last-Event-ID
 to replay missed events. The sidecar buffers all events for the current query
 and replays any with id > Last-Event-ID before resuming the live stream.
+
+A domain reload watchdog monitors the SSE stream. If no data arrives for 10
+seconds while a query is active, the watchdog reconnects the SSE stream
+automatically (up to 3 retries). If the query completed during reload, the
+UI transitions cleanly to idle instead of hanging.
 ```
 
 ### MCP Tool Call Lifecycle
 
 ```
-Claude requests tool call
+Claude requests tool call (e.g., scene_get_hierarchy)
     │
     ▼
-Agent SDK → JSON-RPC request → HttpTransport
+Agent SDK → JSON-RPC tools/call → HttpTransport
     │
     ▼
 MCPServer.EnqueueAndWait() → main thread queue
@@ -197,8 +206,8 @@ MCPServer.EnqueueAndWait() → main thread queue
 ProcessMainThreadQueue() on EditorApplication.update
     │
     ▼
-MCPDispatcher.Execute(toolName, args)
-    │  Reflection-based lookup
+MCPDispatcher.HandleToolCall(toolName, args)
+    │  Direct dispatch to registered tool
     ▼
 [MCPTool] static method executes
     │

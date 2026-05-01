@@ -33,6 +33,7 @@ export declare class AgentRunner {
     private _queryActive;
     private _autoAllowMCPTools;
     private _activeQuery;
+    private _mcpPort;
     private _lastUserMessageId;
     private _pendingToolBlocks;
     private _toolUseToTask;

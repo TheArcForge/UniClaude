@@ -189,17 +189,7 @@ namespace UniClaude.Editor.MCP
             {
                 var obj = JObject.Parse(json);
                 if (obj["method"]?.ToString() == "tools/call")
-                {
-                    var name = obj["params"]?["name"]?.ToString();
-                    // Unwrap call_unity_tool to show the actual inner tool name
-                    if (name == "call_unity_tool")
-                    {
-                        var innerTool = obj["params"]?["arguments"]?["tool"]?.ToString();
-                        if (!string.IsNullOrEmpty(innerTool))
-                            return innerTool;
-                    }
-                    return name;
-                }
+                    return obj["params"]?["name"]?.ToString();
             }
             catch { }
             return null;

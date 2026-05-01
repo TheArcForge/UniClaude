@@ -90,6 +90,9 @@ namespace UniClaude.Editor
         public event Action<SidecarEvent> OnTaskEvent;
         public event Action<SidecarEvent> OnToolProgress;
 
+        /// <summary>Fires when any SSE data is received (including keep-alive heartbeats). Used by the domain reload watchdog.</summary>
+        public event Action OnDataReceived;
+
         string BaseUrl => $"http://127.0.0.1:{_port}";
 
         /// <summary>
@@ -124,7 +127,7 @@ namespace UniClaude.Editor
         /// <param name="attachments">Optional list of file attachments to include with the message.</param>
         public async Task StartChat(string message, string model, string effort,
             string sessionId, string systemPrompt, bool autoAllowMCPTools = false,
-            bool planMode = false, List<SidecarAttachment> attachments = null)
+            bool planMode = false, int mcpPort = 0, List<SidecarAttachment> attachments = null)
         {
             var body = new JObject
             {
@@ -135,6 +138,7 @@ namespace UniClaude.Editor
                 ["systemPrompt"] = systemPrompt,
                 ["autoAllowMCPTools"] = autoAllowMCPTools,
                 ["planMode"] = planMode,
+                ["mcpPort"] = mcpPort,
                 ["projectDir"] = System.IO.Path.GetDirectoryName(Application.dataPath),
             };
 
@@ -254,6 +258,8 @@ namespace UniClaude.Editor
                     var chunk = new char[4096];
                     var read = await reader.ReadAsync(chunk, 0, chunk.Length);
                     if (read == 0) break;
+
+                    OnDataReceived?.Invoke();
 
                     buffer += new string(chunk, 0, read);
                     var events = SplitSSEBuffer(ref buffer, ref _lastEventId);

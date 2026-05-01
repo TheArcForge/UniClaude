@@ -5,6 +5,20 @@ All notable changes to UniClaude will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/). Each released version carries a codename.
 
 
+## [0.3.0] "Sharpening Tools" - 2026-05-01
+
+### Added
+
+- **Eager MCP connection with tool search.** The Unity MCP server connects at query start via the SDK's `mcpServers` config. The Agent SDK's built-in tool search automatically defers tool definitions from context, saving token overhead on conversations that don't use Unity tools. No meta-server or gateway pattern involved.
+- **Direct MCP tool dispatch.** The MCP server now exposes all discovered tools directly via `tools/list` instead of routing through `search_unity_tools` / `call_unity_tool` meta-tools, reducing per-tool-call overhead by one round trip.
+- **`scene_create_primitive` tool.** Creates primitive GameObjects (Cube, Sphere, Plane, Capsule, Cylinder, Quad) with optional position, rotation, scale, and parenting.
+- **Asset import tools.** Three new MCP tools for reading and modifying asset import settings: `asset_get_import_settings` (generic read via SerializedObject), `asset_set_import_settings` (generic write + reimport), and `asset_set_clip_import_settings` (specialized for FBX animation clip loop time, loop pose, and frame range).
+- **AnimatorController authoring tools.** Three new MCP tools for full state machine control: `animation_create_controller` (batch create with parameters, states, and transitions in one call), `animation_edit_controller` (batch add/remove operations on existing controllers), and `animation_get_controller` (inspect parameters, states, transitions, layers).
+
+### Fixed
+
+- **Domain reload watchdog.** After Unity's domain reload, the SSE stream could silently die while the sidecar query was still active. A watchdog now monitors SSE data flow and reconnects automatically if the stream goes silent for 10 seconds (up to 3 retries). If the query completed during reload, the UI transitions cleanly to idle.
+
 ## [0.2.0] "Ninja" - 2026-04-22
 
 ### Added

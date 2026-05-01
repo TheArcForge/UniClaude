@@ -46,6 +46,7 @@ class AgentRunner {
     _queryActive = false;
     _autoAllowMCPTools = false;
     _activeQuery = null;
+    _mcpPort = 0;
     _lastUserMessageId = null;
     _pendingToolBlocks = new Map();
     _toolUseToTask = new Map();
@@ -77,6 +78,7 @@ class AgentRunner {
         this._pendingToolBlocks.clear();
         this._toolUseToTask.clear();
         this._autoAllowMCPTools = request.autoAllowMCPTools ?? false;
+        this._mcpPort = request.mcpPort ?? this._options.mcpPort;
         this._queryActive = true;
         this._abortController = new AbortController();
         // When using AsyncIterable<SDKUserMessage> as the prompt, the generator must
@@ -132,7 +134,7 @@ class AgentRunner {
                     mcpServers: {
                         "uniclaude-unity": {
                             type: "http",
-                            url: `http://127.0.0.1:${this._options.mcpPort}/rpc`,
+                            url: `http://127.0.0.1:${this._mcpPort}/rpc`,
                         },
                     },
                     promptSuggestions: true,
@@ -217,7 +219,8 @@ class AgentRunner {
     }
     async _handleCanUseTool(tool, input, suggestions) {
         // Auto-allow UniClaude MCP tools when the setting is enabled
-        if (this._autoAllowMCPTools && tool.startsWith("mcp__uniclaude-unity__")) {
+        if (this._autoAllowMCPTools &&
+            tool.startsWith("mcp__uniclaude-unity__")) {
             return { behavior: "allow", updatedInput: input };
         }
         // Auto-allow internal/non-destructive tools that don't need user permission
@@ -306,16 +309,12 @@ class AgentRunner {
                 for (const block of content) {
                     // Emit tool activity for all tool use block types
                     if (typeof block.type === "string" && block.type.endsWith("tool_use") && block.id && block.name) {
-                        // Unwrap call_unity_tool to show the actual inner tool name
                         const input = block.input ?? {};
-                        const displayName = block.name === "call_unity_tool" && typeof input.tool === "string"
-                            ? input.tool
-                            : block.name;
                         // Emit phase event (backwards compat)
                         this._options.onEvent({
                             type: "phase",
                             phase: "tool_use",
-                            tool: displayName,
+                            tool: block.name,
                         });
                         // Derive parentTaskId from the linking map
                         const parentTaskId = parentToolUseId
@@ -324,7 +323,7 @@ class AgentRunner {
                         this._options.onEvent({
                             type: "tool_activity",
                             toolUseId: block.id,
-                            toolName: displayName,
+                            toolName: block.name,
                             input,
                             parentTaskId,
                         });
@@ -441,25 +440,13 @@ class AgentRunner {
                     }
                     catch { /* use empty */ }
                 }
-                // Unwrap call_unity_tool to show actual inner tool name
-                const displayName = pending.name === "call_unity_tool" && typeof input.tool === "string"
-                    ? input.tool
-                    : pending.name;
-                // Re-emit corrected phase now that we know the real tool name
-                if (displayName !== pending.name) {
-                    this._options.onEvent({
-                        type: "phase",
-                        phase: "tool_use",
-                        tool: displayName,
-                    });
-                }
                 const parentTaskId = parentToolUseId
                     ? this._toolUseToTask.get(parentToolUseId)
                     : undefined;
                 this._options.onEvent({
                     type: "tool_activity",
                     toolUseId: pending.id,
-                    toolName: displayName,
+                    toolName: pending.name,
                     input,
                     parentTaskId,
                 });

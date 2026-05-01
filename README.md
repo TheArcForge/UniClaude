@@ -1,6 +1,6 @@
 # UniClaude
 
-[![Version](https://img.shields.io/badge/version-0.2.0%20%22Ninja%22-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0%20%22Sharpening%20Tools%22-blue)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Unity 6+](https://img.shields.io/badge/Unity-6000.3%2B-black)](https://unity.com)
 
