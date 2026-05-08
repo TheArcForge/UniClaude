@@ -5,6 +5,38 @@ All notable changes to UniClaude will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/). Each released version carries a codename.
 
 
+## [1.0.0] "Swan Song" - 2026-05-08
+
+**Final release.** Anthropic's updated Terms of Service prohibit third-party tools from using subscription OAuth, which was UniClaude's core model. See [OutroMigration.md](OutroMigration.md) for context and MCP tool extraction plan.
+
+### Added
+
+- **Unity Agent persona.** Every conversation now includes a built-in system prompt that makes Claude a strict, professional Unity developer. The prompt documents all 75 MCP tools (organized by category with efficiency patterns), enforces design-first workflows, and instructs Claude to flag anti-patterns before acting.
+- **Claude Code plugin registration.** The sidecar now registers itself as a local Claude Code plugin (`Sidecar~/.claude-plugin/plugin.json`), enabling the Agent SDK to discover and load UniClaude's skills automatically.
+- **Skill tool enabled.** The `Skill` tool is now included in the Agent SDK's tool set, allowing Claude to invoke skills during conversations.
+- **10 architecture skills.** A layered decision-making framework covering the full Unity development lifecycle:
+  - **unity-architect** — top-level entry point with condensed decision trees for prefabs, scenes, components, data, and performance. Includes 5 deep-dive reference documents.
+  - **unity-workflow** — design-first process: Analyze → Design → Implement → Verify.
+  - **unity-reviewer** — post-implementation code review organized by severity (critical runtime bugs → performance → style).
+  - **unity-performance** — CPU/GPU/RAM cost models, pooling strategies, batching patterns, and platform budgets.
+  - **component-design** — MonoBehaviour composition, responsibility splitting, and communication patterns.
+  - **data-modeling** — ScriptableObject patterns, runtime data management, and serialization strategies.
+  - **prefab-architecture** — when to use separate prefabs vs. variants vs. SO config.
+  - **prefab-workflow** — efficient MCP tool sequences for prefab authoring.
+  - **scene-architecture** — scene organization, additive loading, persistent managers, and transitions.
+  - **scene-authoring** — batch MCP tool sequences for building scenes.
+  - **animation-workflow** — AnimatorController setup via MCP tools.
+
+### Changed
+
+- **System prompt composition.** The system prompt now combines project awareness context (Tier 1) with the Unity Agent persona, joined as separate sections. Previously only project context was appended.
+
+### Tests
+
+- **16 new test cases** covering plugin passthrough, skill tool inclusion, plan mode, undo/rewind, prompt suggestions, tool activity events (streaming and non-streaming), task tracking with parent linking, tool progress, and MCP connection management.
+
+---
+
 ## [0.3.0] "Sharpening Tools" - 2026-05-01
 
 ### Added

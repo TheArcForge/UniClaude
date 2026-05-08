@@ -6,7 +6,7 @@ Thanks for your interest in contributing to UniClaude! This guide covers everyth
 
 - **Unity 6000.3+** (Unity 6)
 - **Node.js 18+**
-- An **Anthropic API key** (for integration testing only)
+- A **Claude subscription** (Pro or Max) logged in via `claude login` (for integration testing only)
 
 ## Development Setup
 
@@ -40,7 +40,7 @@ The UniClaude window should now be available under **ArcForge > UniClaude**.
 Editor/
   Core/         # Data models, services, indexing, sidecar lifecycle
   MCP/          # MCP server, tool dispatch, domain reload strategies
-    Tools/      # 60+ editor tools (one file per category)
+    Tools/      # 75+ editor tools (one file per category)
     Transport/  # HTTP transport layer
     DomainReload/
   UI/           # Editor window, chat panel, input, rendering
@@ -48,6 +48,8 @@ Editor/
 Tests/Editor/   # C# unit tests (NUnit)
   MCP/          # MCP tool tests
 Sidecar~/       # Node.js bridge (TypeScript)
+  .claude-plugin/ # Plugin manifest for Agent SDK discovery
+  skills/       # Architecture skills (10 skills + reference docs)
   src/          # Source code
   tests/        # TypeScript tests
 ```

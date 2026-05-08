@@ -1030,6 +1030,56 @@ describe("AgentRunner tool_progress events", () => {
   });
 });
 
+describe("AgentRunner skill support", () => {
+  it("includes Skill in tools array", async () => {
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
+
+    const fakeQueryFn: QueryFn = (args) => {
+      capturedArgs = args;
+      return fakeConversation();
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: () => {},
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello" });
+
+    assert.ok(capturedArgs !== null, "queryFn was not called");
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
+    const tools = opts.tools as string[];
+    assert.ok(tools.includes("Skill"), "tools array should include 'Skill'");
+  });
+
+  it("includes UniClaude package as a plugin source", async () => {
+    let capturedArgs: Parameters<QueryFn>[0] | null = null;
+
+    const fakeQueryFn: QueryFn = (args) => {
+      capturedArgs = args;
+      return fakeConversation();
+    };
+
+    const runner = new AgentRunner({
+      mcpPort: 9999,
+      onEvent: () => {},
+      queryFn: fakeQueryFn,
+    });
+
+    await runner.startQuery({ message: "hello" });
+
+    assert.ok(capturedArgs !== null, "queryFn was not called");
+    const opts = (capturedArgs as Parameters<QueryFn>[0]).options as Record<string, unknown>;
+    const plugins = opts.plugins as Array<{ type: string; path: string }>;
+    const uniclaudePlugin = plugins.find((p) => p.path.includes("Sidecar~"));
+    assert.ok(
+      uniclaudePlugin !== undefined,
+      `Expected UniClaude sidecar to be in plugins. Got: ${JSON.stringify(plugins)}`
+    );
+  });
+});
+
 describe("AgentRunner eager MCP connection", () => {
   it("passes uniclaude-unity HTTP server in mcpServers", async () => {
     let capturedArgs: Parameters<QueryFn>[0] | null = null;

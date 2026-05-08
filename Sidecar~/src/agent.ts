@@ -1,5 +1,6 @@
 // src/agent.ts
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { SessionTrust } from "./permissions.js";
 import { discoverPlugins } from "./plugins.js";
@@ -173,7 +174,7 @@ export class AgentRunner {
           // through the Unity MCP server, which enables domain reload tracking
           // and tool-call UI bubbles.
           tools: [
-            "Read", "Bash", "Grep", "Glob", "Agent",
+            "Read", "Bash", "Grep", "Glob", "Agent", "Skill",
             "TodoRead", "TodoWrite",
             "TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "TaskOutput", "TaskStop",
             "NotebookEdit", "WebFetch", "WebSearch",
@@ -185,7 +186,10 @@ export class AgentRunner {
           systemPrompt: request.systemPrompt
             ? { type: "preset" as const, preset: "claude_code" as const, append: request.systemPrompt }
             : { type: "preset" as const, preset: "claude_code" as const },
-          plugins,
+          plugins: [
+            ...plugins,
+            { type: "local" as const, path: resolve(__dirname, "..") },
+          ],
           settingSources: ["user", "project"],
           mcpServers: {
             "uniclaude-unity": {

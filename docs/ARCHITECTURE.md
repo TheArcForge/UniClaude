@@ -32,7 +32,7 @@ com.arcforge.uniclaude/
 │   │   ├── UniClaudeAssetPostprocessor.cs # Asset change detection for incremental indexing
 │   │   └── UniClaudeSettings.cs         # Persistent user settings
 │   ├── MCP/                             # Model Context Protocol server
-│   │   ├── Tools/                       # Tool implementations (16 categories, 75 tools)
+│   │   ├── Tools/                       # Tool implementations (16 categories, 75+ tools)
 │   │   ├── DomainReload/                # Domain reload strategies (auto/manual)
 │   │   ├── Transport/                   # HTTP transport layer
 │   │   ├── MCPServer.cs                 # Server lifecycle and main-thread dispatch
@@ -81,6 +81,20 @@ com.arcforge.uniclaude/
 │       └── VersionTrackerSection.cs     # Settings-tab VisualElement with 4 states
 ├── Tests/                               # Unit and integration tests (36+ fixtures)
 ├── Sidecar~/                            # Node.js bridge (Agent SDK, HTTP server)
+│   ├── .claude-plugin/
+│   │   └── plugin.json                  # Claude Code plugin manifest
+│   ├── skills/                          # Claude Code skills (architecture guidance)
+│   │   ├── animation-workflow/          # AnimatorController setup via MCP tools
+│   │   ├── component-design/            # MonoBehaviour composition patterns
+│   │   ├── data-modeling/               # ScriptableObject and runtime data patterns
+│   │   ├── prefab-architecture/         # Prefab vs variant vs SO config decisions
+│   │   ├── prefab-workflow/             # MCP tool sequences for prefab authoring
+│   │   ├── scene-architecture/          # Scene organization and loading strategies
+│   │   ├── scene-authoring/             # Batch MCP tool sequences for scene building
+│   │   ├── unity-architect/             # Top-level architecture decisions (+ 5 references)
+│   │   ├── unity-performance/           # CPU/GPU/RAM cost models and optimization
+│   │   ├── unity-reviewer/              # Post-implementation code review
+│   │   └── unity-workflow/              # Design-first process (Analyze → Design → Implement → Verify)
 │   └── src/
 │       ├── index.ts                     # Entry point (argument parsing)
 │       ├── server.ts                    # Express server (/chat, /health, /approve, /deny, /cancel, /undo)
@@ -333,7 +347,7 @@ The `HttpTransport` binds to `127.0.0.1` only. The MCP server is not accessible 
 
 ### No Credential Storage
 
-The Anthropic API key is read from the `ANTHROPIC_API_KEY` environment variable by the sidecar at runtime. It is never stored in project files, settings, or preferences.
+Authentication is handled by the Claude Code Agent SDK via OAuth (Claude subscription). No API keys, tokens, or credentials are stored in project files, settings, or preferences.
 
 ## Configuration
 
@@ -404,11 +418,25 @@ Local commands take priority if a CLI command shares the same name.
 
 The Agent SDK `tools` option controls which of Claude Code's built-in tools are available. UniClaude removes `Edit` and `Write` from the built-in set so that Claude uses the MCP equivalents (`file_modify_script`, `file_write`, `file_create_script`) instead. This is critical because MCP tool calls flow through `ProcessMainThreadQueue`, which drives domain reload locking and tool-call UI bubbles. Built-in SDK tools bypass the MCP server entirely and would not trigger either mechanism.
 
+The `Skill` tool is included in the built-in set, enabling Claude to load and invoke skills from the UniClaude plugin and any other installed plugins.
+
 As a safety net, `UniClaudeWindow.OnGenerationComplete()` calls `AssetDatabase.Refresh()` unconditionally at the end of every agent turn, catching any edge case where a built-in tool slips through.
 
-### Plugin Discovery (plugins.ts)
+### Plugin Discovery and Skills
 
-The sidecar discovers Claude Code plugins from `~/.claude/plugins/` and the project directory, then passes them to the Agent SDK. This allows Claude to use external plugins alongside UniClaude's built-in MCP tools.
+The sidecar discovers Claude Code plugins from `~/.claude/plugins/` and the project directory, then passes them to the Agent SDK. In addition, the sidecar registers itself as a local plugin (`{ type: "local", path: Sidecar~/ }`), which causes the Agent SDK to discover the `plugin.json` manifest and all skills under `Sidecar~/skills/`.
+
+This means Claude can invoke UniClaude's built-in skills (architecture decisions, code review, workflows) via the `Skill` tool alongside any external plugins the user has installed.
+
+### Unity Agent System Prompt
+
+`UniClaudeWindow.GetUnityAgentPrompt()` returns a static system prompt that is appended to every conversation. It defines:
+
+1. **Persona** — strict, professional Unity developer that explains reasoning, asks clarifying questions, and flags bad approaches
+2. **Tool catalog** — all 75 MCP tools organized by category (scene hierarchy, components, prefabs, materials, animation, files, assets, references, inspector, scene management, events, tags/layers, project, domain reload)
+3. **Efficiency patterns** — batch operations (`scene_setup`, `component_set_properties`, `BeginScriptEditing`/`EndScriptEditing`) to minimize round trips
+
+The prompt is combined with the project awareness Tier 1 context (when enabled) to form the full system prompt sent with each query.
 
 ### File Checkpointing and Undo
 
