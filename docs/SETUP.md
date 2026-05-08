@@ -28,19 +28,19 @@ UniClaude searches for Node.js in the following order:
    - macOS: `/usr/local/bin`, Homebrew (`/opt/homebrew/bin`), nvm
    - Windows: `Program Files\nodejs`, Scoop, nvm, fnm
 
-### Anthropic API Key
+### Claude Subscription
 
-You need an Anthropic API key with access to Claude. Set it as an environment variable:
+UniClaude authenticates through the Claude Code Agent SDK, which uses your Claude subscription (Pro or Max plan). You must be logged into Claude Code before launching Unity:
 
 ```bash
-# macOS / Linux — add to your shell profile (~/.zshrc, ~/.bashrc, etc.)
-export ANTHROPIC_API_KEY=sk-ant-your-key-here
+# Install Claude Code if you haven't already
+npm install -g @anthropic-ai/claude-code
 
-# Windows (PowerShell)
-$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+# Log in (opens browser for OAuth)
+claude login
 ```
 
-The key is never stored by UniClaude — it is read from the environment by the Node.js sidecar at runtime.
+UniClaude never stores credentials — the Agent SDK handles authentication through Claude Code's OAuth flow.
 
 ## Installation
 
@@ -227,7 +227,7 @@ This is safe — the binaries originate from the `@anthropic-ai/claude-agent-sdk
 1. **Check Node.js:** Run `node --version` in your terminal. Must be 18+.
 2. **Check PATH:** Unity may not inherit your shell's PATH. Try setting an explicit Node.js path in Settings.
 3. **Check dependencies:** Delete `Packages/com.arcforge.uniclaude/Sidecar~/node_modules/` and reopen the UniClaude window to trigger a fresh `npm install`.
-4. **Check API key:** Ensure `ANTHROPIC_API_KEY` is set in your environment. Unity inherits environment variables from the process that launched it — if you set the key after launching Unity, restart Unity.
+4. **Check auth:** Ensure you're logged into Claude Code (`claude login`). The Agent SDK authenticates through Claude Code's OAuth — if you haven't logged in, the sidecar can't reach the API.
 
 ### Connection drops during use
 

@@ -4,7 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 1.0.x   | Final release (no further updates planned) |
+| 0.3.x   | No        |
+| 0.2.x   | No        |
+| 0.1.x   | No        |
 
 ## Reporting a Vulnerability
 
@@ -34,5 +37,5 @@ UniClaude's security boundaries are documented in [ARCHITECTURE.md](docs/ARCHITE
 
 - **Localhost-only MCP server** — the HTTP transport binds to `127.0.0.1` and is not network-accessible.
 - **Path sandboxing** — all file operations are validated to stay within the project root via `PathSandbox`.
-- **No credential storage** — the Anthropic API key is read from the `ANTHROPIC_API_KEY` environment variable at runtime and is never persisted.
+- **No credential storage** — authentication is handled by the Claude Code Agent SDK via OAuth. No API keys, tokens, or credentials are stored in project files or preferences.
 - **Permission system** — every MCP tool call requires explicit user approval before execution.
