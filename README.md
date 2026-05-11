@@ -1,6 +1,8 @@
 # UniClaude
 
-> **Project Sunset Notice** — v1.0.0 "Swan Song" is the final release of UniClaude. Anthropic's [updated Terms of Service](https://www.anthropic.com/policies) now prohibit third-party tools from authenticating via Claude subscription OAuth, which was UniClaude's core pricing model.
+![UniClaude](Documentation/UniClaudeGIF.gif)
+
+> **Project Sunset Notice** — v1.0.0 "Swan Song" is the final release of UniClaude. Anthropic's [updated Terms of Service](https://www.anthropic.com/policies) now prohibit third-party tools from authenticating via Claude subscription OAuth, which was UniClaude's core pricing model. See [OutroMigration.md](OutroMigration.md) for context and a plan for extracting UniClaude's MCP tools into a standalone, client-agnostic package. Thank you to everyone who used and contributed to this project.
 
 **[Technical Overview](OVERVIEW.md)** — architecture, engineering challenges, and project scope at a glance.
 

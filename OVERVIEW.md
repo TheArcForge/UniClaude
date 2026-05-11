@@ -1,5 +1,7 @@
 # UniClaude — Technical Overview
 
+![UniClaude](Documentation/UniClaudeGIF.gif)
+
 UniClaude is an AI-powered development environment embedded inside the Unity Editor. It gives developers a conversational interface to Claude that can directly inspect and modify Unity scenes, prefabs, components, materials, animations, and project settings — without leaving the editor.
 
 This document is a high-level walkthrough of the project's scope, architecture, and engineering challenges for anyone evaluating the work.
